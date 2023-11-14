@@ -1,4 +1,5 @@
 ﻿using Rex.Bpmn.Model;
+using Rex.Dapr.Workflow.Bpmn.Model;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,15 +19,19 @@ namespace Rex.Dapr.Workflow.Bpmn
         public static TExtension GetExtensionElement<TExtension>(this BaseElement baseElement)
         {
             var qn = GetQualifiedName(typeof(TExtension));
-            var elem = baseElement.ExtensionElements.Elements.FirstOrDefault(x => x.LocalName == qn.Name && x.NamespaceURI == qn.Namespace);
-            var serializer = new XmlSerializer(typeof(TExtension));
-            using (var ms = new MemoryStream())
+            var elem = baseElement?.ExtensionElements?.Elements.FirstOrDefault(x => x.LocalName == qn.Name && x.NamespaceURI == qn.Namespace);
+            if (elem is not null)
             {
+                var serializer = new XmlSerializer(typeof(TExtension));
+                using var ms = new MemoryStream();
                 var xmlWriter = XmlWriter.Create(ms);
+                elem.WriteTo(xmlWriter);
+                xmlWriter.Flush();
                 ms.Position = 0;
                 var xmlReader = XmlReader.Create(ms);
                 return (TExtension)serializer.Deserialize(xmlReader);
             }
+            return default;
         }
 
         public static IEnumerable<TExtension> GetExtensionElements<TExtension>(this BaseElement baseElement)
@@ -37,16 +42,26 @@ namespace Rex.Dapr.Workflow.Bpmn
             var ret = new List<TExtension>();
             foreach (var elem in elems)
             {
-                using (var ms = new MemoryStream())
-                {
-                    var xmlWriter = XmlWriter.Create(ms);
-                    ms.Position = 0;
-                    var xmlReader = XmlReader.Create(ms);
-                    var obj = (TExtension)serializer.Deserialize(xmlReader);
-                    ret.Add(obj);
-                }
+                using var ms = new MemoryStream();
+                var xmlWriter = XmlWriter.Create(ms);
+                elem.WriteTo(xmlWriter);
+                xmlWriter.Flush();
+                ms.Position = 0;
+                var xmlReader = XmlReader.Create(ms);
+                var obj = (TExtension)serializer.Deserialize(xmlReader);
+                ret.Add(obj);
             }
             return ret;
+        }
+
+        public static IEnumerable<DaprParameter> GetDaprInputParameters(this BaseElement baseElement)
+        {
+            return baseElement?.GetExtensionElement<DaprInputOutput>()?.InputParameters ?? Enumerable.Empty<DaprParameter>();
+        }
+
+        public static IEnumerable<DaprParameter> GetDaprOutputParameters(this BaseElement baseElement)
+        {
+            return baseElement.GetExtensionElement<DaprInputOutput>()?.OutputParameters ?? Enumerable.Empty<DaprParameter>();
         }
 
         private static XmlQualifiedName GetQualifiedName(Type type)

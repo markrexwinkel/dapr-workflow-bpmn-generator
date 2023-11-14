@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_15xzess" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.16.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.17.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dapr="https://dapr.io/schema/1.0/bpmn" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_15xzess" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.16.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.17.0">
   <bpmn:process id="LoanApplication" name="Loan Application" isExecutable="true" camunda:versionTag="1.0">
+    <bpmn:extensionElements>
+      <dapr:inputOutput>
+        <dapr:inputParameter name="ApplicantName" type="string" />
+        <dapr:inputParameter name="LoanAmount" type="decimal" />
+        <dapr:inputParameter name="YearlyGrossSalary" type="decimal" />
+        <dapr:outputParameter name="Approved" type="bool" />
+      </dapr:inputOutput>
+    </bpmn:extensionElements>
     <bpmn:startEvent id="LoanApplicationReceived" name="Loan Application Received">
       <bpmn:outgoing>Flow_03d6nsm</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_1mbsomi" />
@@ -13,7 +21,9 @@
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="Flow_0ooevif" sourceRef="DetermineExistingCustomer" targetRef="gwy_ExistingCustomer" />
     <bpmn:sequenceFlow id="flw_ExistingCustomer_Yes" name="Yes" sourceRef="gwy_ExistingCustomer" targetRef="Gateway_02c1v2m" />
-    <bpmn:sequenceFlow id="flw_ExistingCustomer_No" name="No" sourceRef="gwy_ExistingCustomer" targetRef="act_Registerropect" />
+    <bpmn:sequenceFlow id="flw_ExistingCustomer_No" name="No" sourceRef="gwy_ExistingCustomer" targetRef="act_Registerropect">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">locals["CustomerId"] is null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
     <bpmn:exclusiveGateway id="Gateway_02c1v2m">
       <bpmn:incoming>Flow_112zwdj</bpmn:incoming>
       <bpmn:incoming>flw_ExistingCustomer_Yes</bpmn:incoming>
@@ -48,6 +58,17 @@
       <bpmn:outgoing>Flow_07i3tg5</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:serviceTask id="act_DetermineRiskProfile" name="Determine&#10;Risk&#10;Profile">
+      <bpmn:extensionElements>
+        <dapr:inputOutput>
+          <dapr:inputParameter name="ApplicantName" type="string" />
+          <dapr:inputParameter name="LoanAmount" type="decimal" scope="Global" />
+          <dapr:inputParameter name="YearlyGrossSalary" type="decimal" scope="Global" />
+          <dapr:inputParameter name="HasDefaulted" type="bool" scope="Local"/>
+          <dapr:inputParameter name="OutstandingAmount" type="decimal" scope="Local"/>
+          <dapr:outputParameter name="RiskClass" type="int" />
+          <dapr:outputParameter name="RiskClauses" type="int[]" />
+      </dapr:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_09qxsbb</bpmn:incoming>
       <bpmn:outgoing>Flow_0wj7r5b</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -55,12 +76,15 @@
       <bpmn:incoming>flw_ExistingCustomer_No</bpmn:incoming>
       <bpmn:outgoing>Flow_112zwdj</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="DetermineExistingCustomer" name="Determine Existing Customer" camunda:type="external" camunda:topic="">
+    <bpmn:serviceTask id="DetermineExistingCustomer" name="Determine Existing Customer">
       <bpmn:extensionElements>
-        <camunda:inputOutput>
-          <camunda:inputParameter name="applicationName">${ProcessStartInfo.ApplicationName}</camunda:inputParameter>
-          <camunda:outputParameter name="CustomerInfo">${customerInfo}</camunda:outputParameter>
-        </camunda:inputOutput>
+        <dapr:inputOutput>
+          <dapr:inputParameter name="ApplicantName" type="string" ref="ApplicantName" scope="Global" />
+          <dapr:outputParameter name="CustomerId" type="string" />
+          <dapr:outputParameter name="CustomerName" type="string" />
+          <dapr:outputParameter name="OutstandingAmount" type="decimal" />
+          <dapr:outputParameter name="HasDefaulted" type="bool" />
+        </dapr:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_03d6nsm</bpmn:incoming>
       <bpmn:outgoing>Flow_0ooevif</bpmn:outgoing>
