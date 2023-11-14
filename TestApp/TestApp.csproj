@@ -4,15 +4,24 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="LoanApplication.bpmn" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="LoanApplication.bpmn">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </AdditionalFiles>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Dapr.Workflow" Version="1.12.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Rex.Dapr.Workflow.Bpmn\Rex.Dapr.Workflow.Bpmn.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"  />
+    <ProjectReference Include="..\Rex.Dapr.Workflow.Bpmn\Rex.Dapr.Workflow.Bpmn.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
 </Project>

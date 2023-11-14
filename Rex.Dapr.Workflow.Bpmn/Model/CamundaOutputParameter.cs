@@ -11,5 +11,14 @@ namespace Rex.Dapr.Workflow.Bpmn.Model
 
         [XmlText]
         public string Value { get; set; }
+
+        [XmlElement("map")]
+        public CamundaMap Map { get; set; }
+
+        [XmlElement("list")]
+        public CamundaList List { get; set; }
+
+        [XmlElement("script")]
+        public CamundaScript Script { get; set; }
     }
 }
