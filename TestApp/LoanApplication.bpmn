@@ -21,26 +21,28 @@
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="Flow_0ooevif" sourceRef="DetermineExistingCustomer" targetRef="gwy_ExistingCustomer" />
     <bpmn:sequenceFlow id="flw_ExistingCustomer_Yes" name="Yes" sourceRef="gwy_ExistingCustomer" targetRef="Gateway_02c1v2m" />
-    <bpmn:sequenceFlow id="flw_ExistingCustomer_No" name="No" sourceRef="gwy_ExistingCustomer" targetRef="act_Registerropect">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">locals["CustomerId"] is null</bpmn:conditionExpression>
+    <bpmn:sequenceFlow id="flw_ExistingCustomer_No" name="No" sourceRef="gwy_ExistingCustomer" targetRef="RegisterProspect">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">state["CustomerInfo"] is null</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:exclusiveGateway id="Gateway_02c1v2m">
       <bpmn:incoming>Flow_112zwdj</bpmn:incoming>
       <bpmn:incoming>flw_ExistingCustomer_Yes</bpmn:incoming>
       <bpmn:outgoing>Flow_09qxsbb</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_112zwdj" sourceRef="act_Registerropect" targetRef="Gateway_02c1v2m" />
-    <bpmn:sequenceFlow id="Flow_09qxsbb" sourceRef="Gateway_02c1v2m" targetRef="act_DetermineRiskProfile" />
-    <bpmn:sequenceFlow id="Flow_0wj7r5b" sourceRef="act_DetermineRiskProfile" targetRef="Gateway_13kw37t" />
+    <bpmn:sequenceFlow id="Flow_112zwdj" sourceRef="RegisterProspect" targetRef="Gateway_02c1v2m" />
+    <bpmn:sequenceFlow id="Flow_09qxsbb" sourceRef="Gateway_02c1v2m" targetRef="DetermineRiskProfile" />
+    <bpmn:sequenceFlow id="Flow_0wj7r5b" sourceRef="DetermineRiskProfile" targetRef="Gateway_13kw37t" />
     <bpmn:exclusiveGateway id="gwy_LoanApproved" name="Loan &#10;Approved">
       <bpmn:incoming>Flow_07i3tg5</bpmn:incoming>
       <bpmn:incoming>Flow_1ff5vom</bpmn:incoming>
       <bpmn:outgoing>flw_LoanApproved_Yes</bpmn:outgoing>
       <bpmn:outgoing>flw_LoanApproved_No</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_07i3tg5" sourceRef="act_AssessApplication" targetRef="gwy_LoanApproved" />
-    <bpmn:sequenceFlow id="flw_LoanApproved_Yes" name="Yes" sourceRef="gwy_LoanApproved" targetRef="act_SendProposal" />
-    <bpmn:sequenceFlow id="flw_LoanApproved_No" name="No" sourceRef="gwy_LoanApproved" targetRef="act_SendRejectionLetter" />
+    <bpmn:sequenceFlow id="Flow_07i3tg5" sourceRef="AssessApplication" targetRef="gwy_LoanApproved" />
+    <bpmn:sequenceFlow id="flw_LoanApproved_Yes" name="Yes" sourceRef="gwy_LoanApproved" targetRef="SendProposal">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">(bool) state["LoanApproved"]</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flw_LoanApproved_No" name="No" sourceRef="gwy_LoanApproved" targetRef="SendRejectionLetter" />
     <bpmn:exclusiveGateway id="Gateway_10ptwt1">
       <bpmn:incoming>Flow_0rj05k4</bpmn:incoming>
       <bpmn:incoming>Flow_13gy3ar</bpmn:incoming>
@@ -51,28 +53,28 @@
       <bpmn:incoming>Flow_0ohm3yk</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_0ohm3yk" sourceRef="Gateway_10ptwt1" targetRef="Event_0m2nbrj" />
-    <bpmn:sequenceFlow id="Flow_0ragejw" sourceRef="act_RegisterContract" targetRef="act_SendContract" />
-    <bpmn:sequenceFlow id="Flow_0rj05k4" sourceRef="act_SendContract" targetRef="Gateway_10ptwt1" />
-    <bpmn:userTask id="act_AssessApplication" name="Assess Application">
+    <bpmn:sequenceFlow id="Flow_0ragejw" sourceRef="RegisterContract" targetRef="SendContract" />
+    <bpmn:sequenceFlow id="Flow_0rj05k4" sourceRef="SendContract" targetRef="Gateway_10ptwt1" />
+    <bpmn:userTask id="AssessApplication" name="Assess Application">
       <bpmn:incoming>Flow_1bka56x</bpmn:incoming>
       <bpmn:outgoing>Flow_07i3tg5</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:serviceTask id="act_DetermineRiskProfile" name="Determine&#10;Risk&#10;Profile">
+    <bpmn:serviceTask id="DetermineRiskProfile" name="Determine&#10;Risk&#10;Profile">
       <bpmn:extensionElements>
         <dapr:inputOutput>
           <dapr:inputParameter name="ApplicantName" type="string" />
           <dapr:inputParameter name="LoanAmount" type="decimal" scope="Global" />
           <dapr:inputParameter name="YearlyGrossSalary" type="decimal" scope="Global" />
-          <dapr:inputParameter name="HasDefaulted" type="bool" scope="Local"/>
-          <dapr:inputParameter name="OutstandingAmount" type="decimal" scope="Local"/>
+          <dapr:inputParameter name="HasDefaulted" type="bool" scope="Local" />
+          <dapr:inputParameter name="OutstandingAmount" type="decimal" scope="Local" />
           <dapr:outputParameter name="RiskClass" type="int" />
           <dapr:outputParameter name="RiskClauses" type="int[]" />
-      </dapr:inputOutput>
+        </dapr:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_09qxsbb</bpmn:incoming>
       <bpmn:outgoing>Flow_0wj7r5b</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="act_Registerropect" name="Register Customer">
+    <bpmn:serviceTask id="RegisterProspect" name="Register Customer">
       <bpmn:incoming>flw_ExistingCustomer_No</bpmn:incoming>
       <bpmn:outgoing>Flow_112zwdj</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -89,24 +91,24 @@
       <bpmn:incoming>Flow_03d6nsm</bpmn:incoming>
       <bpmn:outgoing>Flow_0ooevif</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="act_RegisterContract" name="Register Contract">
+    <bpmn:serviceTask id="RegisterContract" name="Register Contract">
       <bpmn:incoming>Flow_0r0jszy</bpmn:incoming>
       <bpmn:outgoing>Flow_0ragejw</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="act_SendRejectionLetter" name="Send&#10;Rejection&#10;Letter">
+    <bpmn:serviceTask id="SendRejectionLetter" name="Send&#10;Rejection&#10;Letter">
       <bpmn:incoming>flw_LoanApproved_No</bpmn:incoming>
       <bpmn:outgoing>Flow_13gy3ar</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="act_SendContract" name="Send&#10;Contract">
+    <bpmn:serviceTask id="SendContract" name="Send&#10;Contract">
       <bpmn:incoming>Flow_0ragejw</bpmn:incoming>
       <bpmn:outgoing>Flow_0rj05k4</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="Flow_04247nz" sourceRef="act_SendProposal" targetRef="Activity_07g5v2k" />
-    <bpmn:serviceTask id="act_SendProposal" name="Send&#10;Proposal">
+    <bpmn:sequenceFlow id="Flow_04247nz" sourceRef="SendProposal" targetRef="ReceiveCustomerDecision" />
+    <bpmn:serviceTask id="SendProposal" name="Send&#10;Proposal">
       <bpmn:incoming>flw_LoanApproved_Yes</bpmn:incoming>
       <bpmn:outgoing>Flow_04247nz</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:receiveTask id="Activity_07g5v2k" name="Receive Customer Decision">
+    <bpmn:receiveTask id="ReceiveCustomerDecision" name="Receive Customer Decision">
       <bpmn:incoming>Flow_04247nz</bpmn:incoming>
       <bpmn:outgoing>Flow_1tdhbnz</bpmn:outgoing>
     </bpmn:receiveTask>
@@ -116,28 +118,32 @@
       <bpmn:outgoing>Flow_0r0jszy</bpmn:outgoing>
       <bpmn:outgoing>Flow_0ostnmy</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_1tdhbnz" sourceRef="Activity_07g5v2k" targetRef="gwy_ProposalAccepted" />
-    <bpmn:sequenceFlow id="Flow_1nx6run" sourceRef="evt_Timeout" targetRef="act_ContactCustomer" />
-    <bpmn:sequenceFlow id="Flow_01jwrz3" sourceRef="act_ContactCustomer" targetRef="gwy_ProposalAccepted" />
-    <bpmn:userTask id="act_ContactCustomer" name="Contact Customer">
+    <bpmn:sequenceFlow id="Flow_1tdhbnz" sourceRef="ReceiveCustomerDecision" targetRef="gwy_ProposalAccepted" />
+    <bpmn:sequenceFlow id="Flow_1nx6run" sourceRef="evt_Timeout" targetRef="ContactCustomer" />
+    <bpmn:sequenceFlow id="Flow_01jwrz3" sourceRef="ContactCustomer" targetRef="gwy_ProposalAccepted" />
+    <bpmn:userTask id="ContactCustomer" name="Contact Customer">
       <bpmn:incoming>Flow_1nx6run</bpmn:incoming>
       <bpmn:outgoing>Flow_01jwrz3</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:boundaryEvent id="evt_Timeout" name="14d" attachedToRef="Activity_07g5v2k">
+    <bpmn:boundaryEvent id="evt_Timeout" name="14d" attachedToRef="ReceiveCustomerDecision">
       <bpmn:outgoing>Flow_1nx6run</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_1xu7zys">
         <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P14D</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:boundaryEvent>
-    <bpmn:sequenceFlow id="Flow_13gy3ar" sourceRef="act_SendRejectionLetter" targetRef="Gateway_10ptwt1" />
-    <bpmn:sequenceFlow id="Flow_0r0jszy" name="Yes" sourceRef="gwy_ProposalAccepted" targetRef="act_RegisterContract" />
+    <bpmn:sequenceFlow id="Flow_13gy3ar" sourceRef="SendRejectionLetter" targetRef="Gateway_10ptwt1" />
+    <bpmn:sequenceFlow id="Flow_0r0jszy" name="Yes" sourceRef="gwy_ProposalAccepted" targetRef="RegisterContract">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">(bool) state["ProposalAccepted"]</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0ostnmy" name="No" sourceRef="gwy_ProposalAccepted" targetRef="Gateway_10ptwt1" />
     <bpmn:exclusiveGateway id="Gateway_13kw37t" name="Risk Class&#10;3 or higher?">
       <bpmn:incoming>Flow_0wj7r5b</bpmn:incoming>
       <bpmn:outgoing>Flow_1bka56x</bpmn:outgoing>
       <bpmn:outgoing>Flow_1ff5vom</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_1bka56x" name="Yes" sourceRef="Gateway_13kw37t" targetRef="act_AssessApplication" />
+    <bpmn:sequenceFlow id="Flow_1bka56x" name="Yes" sourceRef="Gateway_13kw37t" targetRef="AssessApplication">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">(int) state["RiskClass"] &gt; 3</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1ff5vom" name="No" sourceRef="Gateway_13kw37t" targetRef="gwy_LoanApproved" />
     <bpmn:textAnnotation id="TextAnnotation_1chzuc1">
       <bpmn:text>Loan is automatically approved</bpmn:text>
@@ -173,36 +179,36 @@
       <bpmndi:BPMNShape id="Event_0m2nbrj_di" bpmnElement="Event_0m2nbrj">
         <dc:Bounds x="1912" y="222" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_1sdl5j2_di" bpmnElement="act_AssessApplication">
+      <bpmndi:BPMNShape id="Activity_1sdl5j2_di" bpmnElement="AssessApplication">
         <dc:Bounds x="860" y="200" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_13atezs_di" bpmnElement="act_DetermineRiskProfile">
+      <bpmndi:BPMNShape id="Activity_13atezs_di" bpmnElement="DetermineRiskProfile">
         <dc:Bounds x="620" y="200" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_18056q4_di" bpmnElement="act_Registerropect">
+      <bpmndi:BPMNShape id="Activity_18056q4_di" bpmnElement="RegisterProspect">
         <dc:Bounds x="450" y="300" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_18mey96_di" bpmnElement="DetermineExistingCustomer">
         <dc:Bounds x="260" y="200" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_15eh99m_di" bpmnElement="act_RegisterContract">
+      <bpmndi:BPMNShape id="Activity_15eh99m_di" bpmnElement="RegisterContract">
         <dc:Bounds x="1550" y="200" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_1vnkmoy_di" bpmnElement="act_SendRejectionLetter">
+      <bpmndi:BPMNShape id="Activity_1vnkmoy_di" bpmnElement="SendRejectionLetter">
         <dc:Bounds x="1110" y="370" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_093a9bg_di" bpmnElement="act_SendContract">
+      <bpmndi:BPMNShape id="Activity_093a9bg_di" bpmnElement="SendContract">
         <dc:Bounds x="1700" y="200" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_1cwxtdu_di" bpmnElement="act_SendProposal">
+      <bpmndi:BPMNShape id="Activity_1cwxtdu_di" bpmnElement="SendProposal">
         <dc:Bounds x="1110" y="200" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_09eqazx_di" bpmnElement="Activity_07g5v2k">
+      <bpmndi:BPMNShape id="Activity_09eqazx_di" bpmnElement="ReceiveCustomerDecision">
         <dc:Bounds x="1260" y="200" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_100kcjl_di" bpmnElement="gwy_ProposalAccepted" isMarkerVisible="true">
@@ -211,7 +217,7 @@
           <dc:Bounds x="1471" y="256" width="52" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_12d568y_di" bpmnElement="act_ContactCustomer">
+      <bpmndi:BPMNShape id="Activity_12d568y_di" bpmnElement="ContactCustomer">
         <dc:Bounds x="1330" y="300" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_13kw37t_di" bpmnElement="Gateway_13kw37t" isMarkerVisible="true">
