@@ -1,13 +1,10 @@
 ﻿using Microsoft.CodeAnalysis;
-using Rex.Bpmn;
 using Rex.Bpmn.Model;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.Design;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Serialization;
 
@@ -46,10 +43,12 @@ public class BpmnWorkflowGenerator : ISourceGenerator
                     GeneratorExecutionContext = context,
                     RootNamespace = rootNamespace,
                     WorkflowClassName = $"{process.Id}Workflow",
-                    Process = process
+                    Process = process,
+                    Definitions = definitions,
                 };
                 GenerateWorkflow(ctx);
                 GenerateWorkflowExtensionClass(ctx);
+                GenerateControllerClass(ctx);
             }
         }
     }
@@ -60,6 +59,7 @@ public class BpmnWorkflowGenerator : ISourceGenerator
         public string RootNamespace { get; set; }
         public string WorkflowClassName { get; set; }
         public Process Process { get; set; }
+        public Definitions Definitions { get; set; }
         public HashSet<string> GeneratedClasses { get; private set; } = [];
         public int IndentLevel { get; set; }
         public string Indent => new string('\t', IndentLevel);
@@ -71,6 +71,7 @@ public class BpmnWorkflowGenerator : ISourceGenerator
                 GeneratorExecutionContext = GeneratorExecutionContext,
                 RootNamespace = RootNamespace,
                 WorkflowClassName = WorkflowClassName,
+                Definitions = Definitions,
                 Process = Process,
                 GeneratedClasses = GeneratedClasses,
                 IndentLevel = IndentLevel + count
@@ -82,12 +83,13 @@ public class BpmnWorkflowGenerator : ISourceGenerator
     {
         var sourceBuilder = new StringBuilder();
         sourceBuilder.AppendLine($$"""
+            using {{ctx.RootNamespace}}.Workflows.Activities;
             using Dapr.Workflow;
             using Rex.Dapr.Workflow.Bpmn;
             using System;
             using System.Collections.Generic;
            
-            namespace {{ctx.RootNamespace}}
+            namespace {{ctx.RootNamespace}}.Workflows
             {
                 public class {{ctx.WorkflowClassName}} : Workflow<BpmnWorkflowState, BpmnWorkflowState>
                 {
@@ -180,7 +182,7 @@ public class BpmnWorkflowGenerator : ISourceGenerator
 
     private void GenerateReceiveTask(GenerateWorkflowContext ctx, ReceiveTask receiveTask, StringBuilder sourceBuilder)
     {
-        
+        var messageName = ctx.Definitions.RootElements.OfType<Message>().FirstOrDefault(x => x.Id == $"{receiveTask.MessageRef}")?.Name ?? "{{receiveTask.Id}}Completed";
         GenerateFlowNodeMethodSignature(ctx, receiveTask, sourceBuilder);
         sourceBuilder.AppendLine($$"""
             {{ctx.Indent}}{
@@ -188,7 +190,7 @@ public class BpmnWorkflowGenerator : ISourceGenerator
         GenerateBoundaryEventDefinitions(ctx.IncIndent(), receiveTask, sourceBuilder, (ctx2, elem, sb, ts) =>
         {
             sb.AppendLine($$"""
-                {{ctx2.Indent}}state.Merge(await context.WaitForExternalEventAsync<BpmnWorkflowState>("{{receiveTask.Id}}Completed"{{ (ts.HasValue ? $", TimeSpan.FromTicks({ts.Value.Ticks})" : "") }}));
+                {{ctx2.Indent}}state.Merge(await context.WaitForExternalEventAsync<BpmnWorkflowState>("{{messageName}}"{{ (ts.HasValue ? $", TimeSpan.FromTicks({ts.Value.Ticks})" : "") }}));
                 """);
             GenerateOutgoingFlows(ctx2, receiveTask, sourceBuilder);
             sb.AppendLine($$"""
@@ -426,7 +428,7 @@ public class BpmnWorkflowGenerator : ISourceGenerator
             using Dapr.Workflow;
             using Rex.Dapr.Workflow.Bpmn;
 
-            namespace {{ctx.RootNamespace}}
+            namespace {{ctx.RootNamespace}}.Workflows.Activities
             {
                 public partial class {{className}} : WorkflowActivity<BpmnWorkflowState, BpmnWorkflowState>
                 {
@@ -443,7 +445,8 @@ public class BpmnWorkflowGenerator : ISourceGenerator
     {
         var sourceBuilder = new StringBuilder();
         sourceBuilder.AppendLine($$"""
-            using {{ctx.RootNamespace}};
+            using {{ctx.RootNamespace}}.Workflows;
+            using {{ctx.RootNamespace}}.Workflows.Activities;
             using Dapr.Workflow;
 
             namespace Microsoft.Extensions.DependencyInjection
@@ -454,7 +457,7 @@ public class BpmnWorkflowGenerator : ISourceGenerator
                     {
                         services.AddDaprWorkflow(options =>
                         {
-                            options.RegisterWorkflow<{{ctx.WorkflowClassName}}();
+                            options.RegisterWorkflow<{{ctx.WorkflowClassName}}>();
             """);
         foreach (var className in ctx.GeneratedClasses.Where(x => x.EndsWith("Activity")))
         {
@@ -471,6 +474,76 @@ public class BpmnWorkflowGenerator : ISourceGenerator
             """
         );
         ctx.GeneratorExecutionContext.AddSource($"{ctx.WorkflowClassName}ServiceCollectionExtensions.g.cs", sourceBuilder.ToString());
+    }
+
+    private void GenerateControllerClass(GenerateWorkflowContext ctx)
+    {
+        var controllerClassName = $"{ctx.Process.Id}Controller";
+        var sourceBuilder = new StringBuilder();
+        sourceBuilder.AppendLine($$"""
+            using Rex.Dapr.Workflow.Bpmn;
+            using {{ctx.RootNamespace}}.Workflows;
+            using Dapr.Workflow;
+            using Microsoft.AspNetCore.Mvc;
+            using System;
+            using System.Threading.Tasks;
+
+            namespace {{ctx.RootNamespace}}.Controllers
+            {
+                [ApiController]
+                [Route("[controller]")]
+                public partial class {{controllerClassName}} : ControllerBase
+                {
+                    private readonly ILogger<{{controllerClassName}}> _logger;
+                    private readonly DaprWorkflowClient _workflowClient;
+
+                    public {{controllerClassName}}(ILogger<{{controllerClassName}}> logger, DaprWorkflowClient workflowClient)
+                    {
+                        _logger = logger;
+                        _workflowClient = workflowClient;
+                    }
+
+                    [HttpPost("")]
+                    public async Task<string> NewWorkflowAsync(BpmnWorkflowState state)
+                    {
+                        var instanceId = Guid.NewGuid().ToString("N");
+                        await _workflowClient.ScheduleNewWorkflowAsync(
+                            name: nameof({{ctx.WorkflowClassName}}),
+                            instanceId: instanceId,
+                            input: state);
+                        return instanceId;
+                    }
+            """);
+
+        foreach (var elem in ctx.Process.FlowElements.Where(x => x is ReceiveTask || x is UserTask))
+        {
+            var messageName = elem switch
+            {
+                ReceiveTask rt => ctx.Definitions.RootElements.OfType<Message>().FirstOrDefault(x => x.Id == $"{rt.MessageRef}")?.Name ?? $"{rt.Id}Completed",
+                UserTask ut => $"{ut.Id}Completed",
+                _ => null
+            };
+            if (messageName is not null)
+            {
+                sourceBuilder.AppendLine($$"""
+                            [HttpPost("{instanceId}/Raise{{messageName}}")]
+                            public async Task<IActionResult> Raise{{messageName}}Async(string instanceId, [FromBody] BpmnWorkflowState state)
+                            {
+                                await _workflowClient.RaiseEventAsync(
+                                    instanceId: instanceId,
+                                    eventName: "{{messageName}}",
+                                    eventPayload: state);
+                                return Ok();
+                            }
+                    """);
+            }
+        }
+
+        sourceBuilder.AppendLine("""
+                }
+            }
+            """);
+        ctx.GeneratorExecutionContext.AddSource($"{controllerClassName}.g.cs", sourceBuilder.ToString());
     }
 
     public void Initialize(GeneratorInitializationContext context)

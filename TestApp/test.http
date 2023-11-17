@@ -1,0 +1,15 @@
+########################################################
+# Start Loan Application
+########################################################
+
+# @name startLoanApplication
+
+POST https://localhost:49256/LoanApplication
+Content-Type: application/json
+
+{
+    "ApplicantName": "Eric Grey",
+    "LoanAmount": 80000,
+    "YearlyGrossSalary": 80000
+}
+
