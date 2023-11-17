@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="LoanApplication.bpmn">
+    <AdditionalFiles Include="Workflows\LoanApplication.bpmn">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </AdditionalFiles>
   </ItemGroup>
@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Rex.Bpmn\Rex.Bpmn.csproj" OutputItemType="Analyzer" />
     <ProjectReference Include="..\Rex.Dapr.Workflow.Bpmn\Rex.Dapr.Workflow.Bpmn.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
