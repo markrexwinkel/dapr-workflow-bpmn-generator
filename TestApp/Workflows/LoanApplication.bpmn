@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dapr="https://dapr.io/schema/1.0/bpmn" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_15xzess" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.16.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.17.0">
-  <bpmn:process id="LoanApplication" name="Loan Application" isExecutable="true" camunda:versionTag="1.0">
+  <bpmn:process id="LoanApplication" name="Loan Application" isExecutable="true" camunda:versionTag="1.0" dapr:inputType="TestApp.Models.LoanApplication" dapr:outputType="TestApp.Models.ApplicationResult">
     <bpmn:extensionElements>
       <dapr:inputOutput>
-        <dapr:inputParameter name="ApplicantName" type="string" />
-        <dapr:inputParameter name="LoanAmount" type="decimal" />
-        <dapr:inputParameter name="YearlyGrossSalary" type="decimal" />
-        <dapr:outputParameter name="Approved" type="bool" />
+        <dapr:inputParameter name="LoanApplication" type="TestApp.Models.LoanApplication" />
+        <dapr:outputParameter name="ApplicationResult" type="TestApp.Models.ApplicationResult" />
       </dapr:inputOutput>
     </bpmn:extensionElements>
     <bpmn:startEvent id="LoanApplicationReceived" name="Loan Application Received">
@@ -22,7 +20,7 @@
     <bpmn:sequenceFlow id="Flow_0ooevif" sourceRef="DetermineExistingCustomer" targetRef="gwy_ExistingCustomer" />
     <bpmn:sequenceFlow id="flw_ExistingCustomer_Yes" name="Yes" sourceRef="gwy_ExistingCustomer" targetRef="Gateway_02c1v2m" />
     <bpmn:sequenceFlow id="flw_ExistingCustomer_No" name="No" sourceRef="gwy_ExistingCustomer" targetRef="RegisterProspect">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">state["CustomerInfo"] is null</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">CustomerInfo is null</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:exclusiveGateway id="Gateway_02c1v2m">
       <bpmn:incoming>Flow_112zwdj</bpmn:incoming>
@@ -34,19 +32,19 @@
     <bpmn:sequenceFlow id="Flow_0wj7r5b" sourceRef="DetermineRiskProfile" targetRef="Gateway_13kw37t" />
     <bpmn:exclusiveGateway id="gwy_LoanApproved" name="Loan &#10;Approved">
       <bpmn:incoming>Flow_07i3tg5</bpmn:incoming>
-      <bpmn:incoming>Flow_1ff5vom</bpmn:incoming>
+      <bpmn:incoming>Flow_0jejln2</bpmn:incoming>
       <bpmn:outgoing>flw_LoanApproved_Yes</bpmn:outgoing>
       <bpmn:outgoing>flw_LoanApproved_No</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="Flow_07i3tg5" sourceRef="AssessApplication" targetRef="gwy_LoanApproved" />
     <bpmn:sequenceFlow id="flw_LoanApproved_Yes" name="Yes" sourceRef="gwy_LoanApproved" targetRef="SendProposal">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">(bool) state["LoanApproved"]</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">ApplicationResult.Approved</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="flw_LoanApproved_No" name="No" sourceRef="gwy_LoanApproved" targetRef="SendRejectionLetter" />
     <bpmn:exclusiveGateway id="Gateway_10ptwt1">
       <bpmn:incoming>Flow_0rj05k4</bpmn:incoming>
-      <bpmn:incoming>Flow_13gy3ar</bpmn:incoming>
       <bpmn:incoming>Flow_0ostnmy</bpmn:incoming>
+      <bpmn:incoming>Flow_0pfugk3</bpmn:incoming>
       <bpmn:outgoing>Flow_0ohm3yk</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:endEvent id="Event_0m2nbrj">
@@ -56,36 +54,36 @@
     <bpmn:sequenceFlow id="Flow_0ragejw" sourceRef="RegisterContract" targetRef="SendContract" />
     <bpmn:sequenceFlow id="Flow_0rj05k4" sourceRef="SendContract" targetRef="Gateway_10ptwt1" />
     <bpmn:userTask id="AssessApplication" name="Assess Application">
+      <bpmn:extensionElements>
+        <dapr:inputOutput>
+          <dapr:outputParameter name="ApplicationResult.Approved" type="bool" />
+        </dapr:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_1bka56x</bpmn:incoming>
       <bpmn:outgoing>Flow_07i3tg5</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:serviceTask id="DetermineRiskProfile" name="Determine&#10;Risk&#10;Profile">
       <bpmn:extensionElements>
         <dapr:inputOutput>
-          <dapr:inputParameter name="ApplicantName" type="string" />
-          <dapr:inputParameter name="LoanAmount" type="decimal" scope="Global" />
-          <dapr:inputParameter name="YearlyGrossSalary" type="decimal" scope="Global" />
-          <dapr:inputParameter name="HasDefaulted" type="bool" scope="Local" />
-          <dapr:inputParameter name="OutstandingAmount" type="decimal" scope="Local" />
-          <dapr:outputParameter name="RiskClass" type="int" />
-          <dapr:outputParameter name="RiskClauses" type="int[]" />
+          <dapr:outputParameter name="RiskProfile" type="TestApp.Models.RiskProfile" />
         </dapr:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_09qxsbb</bpmn:incoming>
       <bpmn:outgoing>Flow_0wj7r5b</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="RegisterProspect" name="Register Customer">
+      <bpmn:extensionElements>
+        <dapr:inputOutput>
+          <dapr:outputParameter name="CustomerInfo" type="TestApp.Models.CustomerInfo" />
+        </dapr:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>flw_ExistingCustomer_No</bpmn:incoming>
       <bpmn:outgoing>Flow_112zwdj</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="DetermineExistingCustomer" name="Determine Existing Customer">
       <bpmn:extensionElements>
         <dapr:inputOutput>
-          <dapr:inputParameter name="ApplicantName" type="string" ref="ApplicantName" scope="Global" />
-          <dapr:outputParameter name="CustomerId" type="string" />
-          <dapr:outputParameter name="CustomerName" type="string" />
-          <dapr:outputParameter name="OutstandingAmount" type="decimal" />
-          <dapr:outputParameter name="HasDefaulted" type="bool" />
+          <dapr:outputParameter name="CustomerInfo" type="TestApp.Models.CustomerInfo" />
         </dapr:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_03d6nsm</bpmn:incoming>
@@ -108,7 +106,12 @@
       <bpmn:incoming>flw_LoanApproved_Yes</bpmn:incoming>
       <bpmn:outgoing>Flow_04247nz</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:receiveTask id="ReceiveCustomerDecision" name="Receive Customer Decision">
+    <bpmn:receiveTask id="ReceiveCustomerDecision" name="Receive Customer Decision" messageRef="Message_2u98cd5">
+      <bpmn:extensionElements>
+        <dapr:inputOutput>
+          <dapr:outputParameter name="ProposalAccepted" type="bool" />
+        </dapr:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_04247nz</bpmn:incoming>
       <bpmn:outgoing>Flow_1tdhbnz</bpmn:outgoing>
     </bpmn:receiveTask>
@@ -122,6 +125,11 @@
     <bpmn:sequenceFlow id="Flow_1nx6run" sourceRef="evt_Timeout" targetRef="ContactCustomer" />
     <bpmn:sequenceFlow id="Flow_01jwrz3" sourceRef="ContactCustomer" targetRef="gwy_ProposalAccepted" />
     <bpmn:userTask id="ContactCustomer" name="Contact Customer">
+      <bpmn:extensionElements>
+        <dapr:inputOutput>
+          <dapr:outputParameter name="ProposalAccepted" type="bool" />
+        </dapr:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_1nx6run</bpmn:incoming>
       <bpmn:outgoing>Flow_01jwrz3</bpmn:outgoing>
     </bpmn:userTask>
@@ -131,9 +139,9 @@
         <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P14D</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:boundaryEvent>
-    <bpmn:sequenceFlow id="Flow_13gy3ar" sourceRef="SendRejectionLetter" targetRef="Gateway_10ptwt1" />
+    <bpmn:sequenceFlow id="Flow_13gy3ar" sourceRef="SendRejectionLetter" targetRef="Gateway_0092gjs" />
     <bpmn:sequenceFlow id="Flow_0r0jszy" name="Yes" sourceRef="gwy_ProposalAccepted" targetRef="RegisterContract">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">(bool) state["ProposalAccepted"]</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">ProposalAccepted</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0ostnmy" name="No" sourceRef="gwy_ProposalAccepted" targetRef="Gateway_10ptwt1" />
     <bpmn:exclusiveGateway id="Gateway_13kw37t" name="Risk Class&#10;3 or higher?">
@@ -142,20 +150,50 @@
       <bpmn:outgoing>Flow_1ff5vom</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="Flow_1bka56x" name="Yes" sourceRef="Gateway_13kw37t" targetRef="AssessApplication">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">(int) state["RiskClass"] &gt; 3</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">RiskProfile.RiskClass &gt; 3</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_1ff5vom" name="No" sourceRef="Gateway_13kw37t" targetRef="gwy_LoanApproved" />
-    <bpmn:textAnnotation id="TextAnnotation_1chzuc1">
-      <bpmn:text>Loan is automatically approved</bpmn:text>
-    </bpmn:textAnnotation>
-    <bpmn:association id="Association_0id1j0f" sourceRef="Flow_1ff5vom" targetRef="TextAnnotation_1chzuc1" />
+    <bpmn:sequenceFlow id="Flow_1ff5vom" name="No" sourceRef="Gateway_13kw37t" targetRef="AutomaticallyApproveLoan" />
+    <bpmn:sequenceFlow id="Flow_0pfugk3" sourceRef="Gateway_1uf0hys" targetRef="Gateway_10ptwt1" />
+    <bpmn:parallelGateway id="Gateway_0092gjs">
+      <bpmn:incoming>Flow_13gy3ar</bpmn:incoming>
+      <bpmn:outgoing>Flow_1uor0gf</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0hseoa4</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Activity_1ag39si" name="A">
+      <bpmn:incoming>Flow_1uor0gf</bpmn:incoming>
+      <bpmn:outgoing>Flow_1qiaa9e</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1mp2kpl" name="B">
+      <bpmn:incoming>Flow_0hseoa4</bpmn:incoming>
+      <bpmn:outgoing>Flow_1y78qc6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_1uf0hys">
+      <bpmn:incoming>Flow_1qiaa9e</bpmn:incoming>
+      <bpmn:incoming>Flow_1y78qc6</bpmn:incoming>
+      <bpmn:outgoing>Flow_0pfugk3</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:sequenceFlow id="Flow_1qiaa9e" sourceRef="Activity_1ag39si" targetRef="Gateway_1uf0hys" />
+    <bpmn:sequenceFlow id="Flow_1y78qc6" sourceRef="Activity_1mp2kpl" targetRef="Gateway_1uf0hys" />
+    <bpmn:sequenceFlow id="Flow_1uor0gf" sourceRef="Gateway_0092gjs" targetRef="Activity_1ag39si" />
+    <bpmn:sequenceFlow id="Flow_0hseoa4" sourceRef="Gateway_0092gjs" targetRef="Activity_1mp2kpl" />
+    <bpmn:sequenceFlow id="Flow_0jejln2" sourceRef="AutomaticallyApproveLoan" targetRef="gwy_LoanApproved" />
+    <bpmn:serviceTask id="AutomaticallyApproveLoan" name="Automatically approve Loan">
+      <bpmn:extensionElements>
+        <dapr:inputOutput>
+          <dapr:outputParameter name="ApplicationResult.Approved" type="bool" />
+        </dapr:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ff5vom</bpmn:incoming>
+      <bpmn:outgoing>Flow_0jejln2</bpmn:outgoing>
+    </bpmn:serviceTask>
   </bpmn:process>
+  <bpmn:message id="Message_2u98cd5" name="CustomerDecisionCompleted" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="LoanApplication">
       <bpmndi:BPMNShape id="Event_1wopqui_di" bpmnElement="LoanApplicationReceived">
         <dc:Bounds x="182" y="222" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="160" y="265" width="81" height="27" />
+          <dc:Bounds x="159" y="184.5" width="81" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_041ehgc_di" bpmnElement="gwy_ExistingCustomer" isMarkerVisible="true">
@@ -226,8 +264,20 @@
           <dc:Bounds x="750" y="272" width="59" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_1chzuc1_di" bpmnElement="TextAnnotation_1chzuc1">
-        <dc:Bounds x="890" y="80" width="160" height="42" />
+      <bpmndi:BPMNShape id="Activity_087upj2_di" bpmnElement="Activity_1ag39si">
+        <dc:Bounds x="1600" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0w2v99l_di" bpmnElement="Activity_1mp2kpl">
+        <dc:Bounds x="1600" y="430" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0l35qli_di" bpmnElement="Gateway_1uf0hys">
+        <dc:Bounds x="1765" y="395" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0t1cfj7_di" bpmnElement="Gateway_0092gjs">
+        <dc:Bounds x="1485" y="385" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1ln3c46_di" bpmnElement="AutomaticallyApproveLoan">
+        <dc:Bounds x="860" y="100" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_1gsraxm_di" bpmnElement="evt_Timeout">
@@ -323,8 +373,7 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_13gy3ar_di" bpmnElement="Flow_13gy3ar">
         <di:waypoint x="1210" y="410" />
-        <di:waypoint x="1860" y="410" />
-        <di:waypoint x="1860" y="265" />
+        <di:waypoint x="1485" y="410" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0r0jszy_di" bpmnElement="Flow_0r0jszy">
         <di:waypoint x="1485" y="240" />
@@ -351,16 +400,41 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_1ff5vom_di" bpmnElement="Flow_1ff5vom">
         <di:waypoint x="780" y="215" />
-        <di:waypoint x="780" y="150" />
-        <di:waypoint x="1040" y="150" />
-        <di:waypoint x="1040" y="215" />
+        <di:waypoint x="780" y="140" />
+        <di:waypoint x="860" y="140" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="752" y="191" width="15" height="14" />
+          <dc:Bounds x="752" y="188" width="15" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_0id1j0f_di" bpmnElement="Association_0id1j0f">
-        <di:waypoint x="910" y="150" />
-        <di:waypoint x="925" y="122" />
+      <bpmndi:BPMNEdge id="Flow_0pfugk3_di" bpmnElement="Flow_0pfugk3">
+        <di:waypoint x="1820" y="420" />
+        <di:waypoint x="1860" y="420" />
+        <di:waypoint x="1860" y="265" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1qiaa9e_di" bpmnElement="Flow_1qiaa9e">
+        <di:waypoint x="1700" y="360" />
+        <di:waypoint x="1790" y="360" />
+        <di:waypoint x="1790" y="395" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1y78qc6_di" bpmnElement="Flow_1y78qc6">
+        <di:waypoint x="1700" y="470" />
+        <di:waypoint x="1790" y="470" />
+        <di:waypoint x="1790" y="445" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1uor0gf_di" bpmnElement="Flow_1uor0gf">
+        <di:waypoint x="1510" y="385" />
+        <di:waypoint x="1510" y="360" />
+        <di:waypoint x="1600" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0hseoa4_di" bpmnElement="Flow_0hseoa4">
+        <di:waypoint x="1510" y="435" />
+        <di:waypoint x="1510" y="470" />
+        <di:waypoint x="1600" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0jejln2_di" bpmnElement="Flow_0jejln2">
+        <di:waypoint x="960" y="140" />
+        <di:waypoint x="1040" y="140" />
+        <di:waypoint x="1040" y="215" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

@@ -9,7 +9,44 @@ Content-Type: application/json
 
 {
     "ApplicantName": "Eric Grey",
-    "LoanAmount": 80000,
+    "LoanAmount": 110000,
     "YearlyGrossSalary": 80000
 }
 
+
+### 
+
+@instanceId = 7edf57bb85114728b784ce5fef229cb5
+
+###
+
+POST https://localhost:49256/LoanApplication/{{instanceId}}/RaiseAssessApplicationCompleted
+Content-Type: application/json
+
+false
+
+###
+
+POST https://localhost:49256/LoanApplication/{{instanceId}}/RaiseCustomerDecisionCompleted
+Content-Type: application/json
+
+true
+
+###
+
+POST https://localhost:49256/LoanApplication/{{instanceId}}/RaiseActivity_1ag39siCompleted
+Content-Type: application/json
+
+{
+}
+
+
+### 
+
+#@instanceId = {{startLoanApplication.response.body.$}}
+
+POST https://localhost:49256/LoanApplication/{{instanceId}}/RaiseActivity_1mp2kplCompleted
+Content-Type: application/json
+
+{
+}

@@ -1,6 +1,5 @@
 ﻿using Dapr.Workflow;
-using Rex.Dapr.Workflow.Bpmn;
-using System;
+using System.Runtime.InteropServices;
 using TestApp.Models;
 
 namespace TestApp.Workflows.Activities;
@@ -15,17 +14,12 @@ partial class DetermineExistingCustomerActivity
         _logger = logger;
     }
 
-    public override Task<BpmnWorkflowState> RunAsync(WorkflowActivityContext context, BpmnWorkflowState input)
+    public override Task<CustomerInfo> RunAsync(WorkflowActivityContext context, LoanApplicationWorkflowState input)
     {
-        _logger.LogInformation($"{nameof(DetermineExistingCustomerActivity)}.RunAsync called");
-        foreach(var kv in input)
-        {
-            _logger.LogInformation($"{kv.Key}={kv.Value}");
-        }
-        var customerName = (string)input["ApplicantName"];
+        var customerName = input.LoanApplication.ApplicantName;
         if (customerName.Equals("john doe", StringComparison.InvariantCultureIgnoreCase))
         {
-            return Task.FromResult(input);
+            return Task.FromResult<CustomerInfo>(null);
         }
 
         // Generate random demo customer info based on the input
@@ -62,7 +56,6 @@ partial class DetermineExistingCustomerActivity
                 OutstandingAmount: _random.Next(10000, 100000),
                 HasDefaulted: _random.Next(10) % 2 == 0);
         }
-        input["CustomerInfo"] = info;
-        return Task.FromResult(input);
+        return Task.FromResult(info);
     }
 }

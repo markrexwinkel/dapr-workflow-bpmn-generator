@@ -1,10 +1,13 @@
 ﻿using Microsoft.CodeAnalysis;
 using Rex.Bpmn.Model;
+using Rex.Dapr.Workflow.Bpmn.Model;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Xml;
 using System.Xml.Serialization;
 
@@ -21,6 +24,8 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
     private static readonly DiagnosticDescriptor TargetDoesNotExist = new("BPMN0004", "Target not found", "Target {0} found for flow {1} and source {2} not found", DiagnosticCategory, DiagnosticSeverity.Error, true);
     private static readonly DiagnosticDescriptor ElementNotSupported = new("BPMN0005", "Element not supported", "Element {0} is not supported", DiagnosticCategory, DiagnosticSeverity.Error, true);
     private static readonly DiagnosticDescriptor ExpressionTypeNotSupported = new("BPMN0006", "Expression type not supported", "Expression type {0} not supported", DiagnosticCategory, DiagnosticSeverity.Warning, true);
+    private static readonly DiagnosticDescriptor NoInputParameterDefined = new("BPMN0007", "No input parameter defined", "No input parameter defined for element {0}", DiagnosticCategory, DiagnosticSeverity.Error, true);
+    private static readonly DiagnosticDescriptor NoOutputParameterDefined = new("BPMN0008", "No output parameter defined", "No output parameter defined for element {0}", DiagnosticCategory, DiagnosticSeverity.Error, true);
 
     public void Execute(GeneratorExecutionContext context)
     {
@@ -50,6 +55,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                         Definitions = definitions,
                     };
                     GenerateWorkflow(ctx);
+                    GenerateWorkflowStateClass(ctx);
                     GenerateLogActivityClass(ctx);
                     GenerateWorkflowExtensionClass(ctx);
                     GenerateControllerClass(ctx);
@@ -66,6 +72,15 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
 
     private void GenerateWorkflow(GenerateWorkflowContext ctx)
     {
+        var inputParameter = ctx.Process.GetDaprInputParameters().FirstOrDefault() ?? throw new DiagnosticException(NoInputParameterDefined, null, ctx.Process.Id);
+        var outputParameter = ctx.Process.GetDaprOutputParameters().FirstOrDefault() ?? throw new DiagnosticException(NoOutputParameterDefined, null, ctx.Process.Id);
+        // TODO: validate parameters
+
+        ctx.WorkflowInputType = inputParameter.Type;
+        ctx.WorkflowOutputType = outputParameter.Type;
+
+        ctx.WorkflowStateProperties.AddRange(new[] { inputParameter, outputParameter });
+
         var startElement = ctx.Process.GetFlowElement<StartEvent>() ?? throw new DiagnosticException(NoStartEventFound, null);
                 
         var sourceBuilder = new StringBuilder();
@@ -75,23 +90,97 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             using Rex.Dapr.Workflow.Bpmn;
             using System;
             using System.Collections.Generic;
+            using System.Collections.Concurrent;
             using Microsoft.Extensions.Logging;
-           
+            using System.Threading;
+            using System.Threading.Tasks;
+
             namespace {{ctx.RootNamespace}}.Workflows
             {
-                public class {{ctx.WorkflowClassName}} : Workflow<BpmnWorkflowState, BpmnWorkflowState>
+                public class {{ctx.WorkflowClassName}} : Workflow<{{inputParameter.Type}}, {{outputParameter.Type}}>
                 {
-                    private delegate Task<CallHandlerAsync[]> CallHandlerAsync(WorkflowContext context, BpmnWorkflowState state);
-
-                    public override async Task<BpmnWorkflowState> RunAsync(WorkflowContext context, BpmnWorkflowState state)
+                    private class CallHandlerResult
                     {
-                        var tasks = new List<Task<CallHandlerAsync[]>>() { Call{{startElement.Id}}Async(context, state) };
-                        while(tasks.Count > 0)
+                        public CallHandlerResult(CallHandlerAsync next, string flowId)
                         {
-                            var readyTask = await Task.WhenAny(tasks);
-                            tasks.AddRange((await readyTask).Select(x => x(context, state)));
+                            Next = next;
+                            FlowId = flowId;
                         }
-                        return state;
+
+                        public CallHandlerAsync Next { get; }
+                        public string FlowId { get; }
+                    }
+
+                    private delegate Task<CallHandlerResult[]> CallHandlerAsync(WorkflowContext context, {{ctx.WorkflowStateClassName}} state, string flowId);
+
+                    private readonly ConcurrentDictionary<string, SemaphoreSlim> _parallelGatewayFlows = new ConcurrentDictionary<string, SemaphoreSlim>();
+                    private readonly ConcurrentDictionary<string, int> _parallelGatewaysWaiting = new ConcurrentDictionary<string, int>();
+                    private readonly ConcurrentDictionary<string, int> _parallelGatewayEntries = new ConcurrentDictionary<string, int>();
+
+                    public override async Task<{{outputParameter.Type}}> RunAsync(WorkflowContext context, {{inputParameter.Type}} input)
+                    {
+                        try
+                        {
+                            var state = new {{ctx.WorkflowStateClassName}}
+                            {
+                                {{inputParameter.Name}} = input,
+                                {{outputParameter.Name}} = new()
+                            };
+
+                            var tasks = new List<Task<CallHandlerResult[]>>() { Call{{startElement.Id}}Async(context, state, null) };
+                            while(tasks.Count > 0)
+                            {
+                                Task<CallHandlerResult[]> readyTask = null;
+                                try
+                                {
+                                    readyTask = await Task.WhenAny(tasks);
+                                    tasks.AddRange((await readyTask).Select(x => x.Next(context, state, x.FlowId)));
+                                }
+                                finally
+                                {
+                                    if (readyTask is not null)
+                                    {
+                                        tasks.Remove(readyTask);
+                                        readyTask = null;
+                                    }
+                                }
+                            }
+                            return state.{{outputParameter.Name}};
+                        }
+                        catch(Exception ex)
+                        {
+                            await LogAsync(context, $"Exception occured: {ex}");
+                            throw;
+                        }
+                    }
+
+                    private SemaphoreSlim GetIncomingFlowSemaphore(string flowId)
+                    {
+                        return _parallelGatewayFlows.GetOrAdd(flowId, _ => new SemaphoreSlim(0));
+                    }
+
+                    private async Task<bool> WaitForIncomingFlowsAsync(string id, params string[] flowIds)
+                    {
+                        if(!_parallelGatewaysWaiting.TryAdd(id, 0))
+                        {
+                            // already waiting
+                            return false;
+                        }
+                        var semaphores = flowIds.Select(x => GetIncomingFlowSemaphore(x));
+                        await Task.WhenAll(semaphores.Select(x => x.WaitAsync()));
+                        _parallelGatewaysWaiting.TryRemove(id, out _);
+                        return true;
+                    }
+
+                    private void SignalIncomingFlow(string flowId)
+                    {
+                        var semaphore = GetIncomingFlowSemaphore(flowId);
+                        semaphore.Release();
+                    }
+
+                    private async Task<object> LogAsync(WorkflowContext context, string message)
+                    {
+                        return await context.CallActivityAsync<object>(nameof({{ctx.WorkflowClassName}}LogActivity), message);
                     }
             """);
 
@@ -130,13 +219,19 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
     private string GenerateElement(GenerateWorkflowContext ctx, FlowNode elem)
     {
         var boundaryEvents = GetBoundaryEventDefinitions(ctx.Process, elem, out var timeout);
+        var outputParameter = elem.GetDaprOutputParameters().FirstOrDefault();
+        if (outputParameter is not null)
+        {
+            ctx.WorkflowStateProperties.Add(outputParameter);
+        }
         var method = elem switch
         {
-            ServiceTask serviceTask => GenerateServiceTask(ctx, serviceTask, timeout),
+            ServiceTask serviceTask => GenerateServiceTask(ctx, serviceTask, outputParameter, timeout),
             ExclusiveGateway exclusiveGateway => GenerateExclusiveGateway(ctx, exclusiveGateway),
+            ParallelGateway parallelGateway => GenerateParallelGateway(parallelGateway),
             EndEvent => GenerateEndEvent(),
-            UserTask userTask => GenerateUserTask(userTask, timeout),
-            ReceiveTask receiveTask => GenerateReceiveTask(ctx, receiveTask, timeout),
+            UserTask userTask => GenerateUserTask(userTask, outputParameter, timeout),
+            ReceiveTask receiveTask => GenerateReceiveTask(ctx, receiveTask, outputParameter, timeout),
             StartEvent => GenerateStartEvent(),
             _ => throw new DiagnosticException(ElementNotSupported, null, elem?.GetType().FullName)
         };
@@ -146,7 +241,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             return string.Empty;
         }
 
-        var methodSignature = GenerateFlowNodeMethodSignature(elem, method.IsAsync);
+        var methodSignature = GenerateFlowNodeMethodSignature(ctx, elem, method.IsAsync);
         var outgoingMethods = method.GenerateOutgoingFlows ? GenerateOutgoingFlows(ctx, elem) : string.Empty;
         var returnOutgoingMethods = outgoingMethods.Length > 0 ? GetReturnStatement(outgoingMethods, method.IsAsync) : string.Empty;
         
@@ -190,65 +285,91 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
 
         static string GetReturnStatement(string outgoingMethods, bool isAsync)
         {
-            return $"return {(!isAsync ? "Task.FromResult<CallHandlerAsync[]>(" : string.Empty)}new CallHandlerAsync[] {{{outgoingMethods}}}{(!isAsync ? ")" : string.Empty)};";
+            return $"return {(!isAsync ? "Task.FromResult<CallHandlerResult[]>(" : string.Empty)}new CallHandlerResult[] {{{outgoingMethods}}}{(!isAsync ? ")" : string.Empty)};";
         }
     }
 
-    private string GenerateFlowNodeMethodSignature(FlowNode flowNode, bool isAsync = true)
+    private string GenerateFlowNodeMethodSignature(GenerateWorkflowContext ctx, FlowNode flowNode, bool isAsync = true)
     {
-        return $"private {(isAsync ? "async " : "")}Task<CallHandlerAsync[]> Call{flowNode.Id}Async(WorkflowContext context, BpmnWorkflowState state)";
+        return $"private {(isAsync ? "async " : "")}Task<CallHandlerResult[]> Call{flowNode.Id}Async(WorkflowContext context, {ctx.WorkflowStateClassName} state, string flowId)";
     }
 
-    private string GenerateWaitForExternalEvent(string messageName, TimeSpan? timeout)
+    private string GenerateWaitForExternalEvent(string messageName, DaprParameter outputParameter, TimeSpan? timeout)
     {
-        return $"state.Merge(await context.WaitForExternalEventAsync<BpmnWorkflowState>(\"{messageName}\"{(timeout.HasValue ? $", TimeSpan.FromTicks({timeout.Value.Ticks})" : "")}));";
+        var outputType = outputParameter is null ? "object" : outputParameter.Type;
+        var outputAssignment = outputParameter is not null ? $"state.{outputParameter.Name} = " : string.Empty;
+
+        return $"{outputAssignment}await context.WaitForExternalEventAsync<{outputType}>(\"{messageName}\"{(timeout.HasValue ? $", TimeSpan.FromTicks({timeout.Value.Ticks})" : "")});";
     }
 
-    private string GenerateCallActivity(string className, TimeSpan? timeout)
+    private string GenerateCallActivity(string className, DaprParameter outputParameter, TimeSpan? timeout)
     {
-        if(timeout.HasValue)
+        var outputType = outputParameter is null ? "object" : outputParameter.Type;
+        var outputAssignment = outputParameter is not null ? $"state.{outputParameter.Name} = " : string.Empty;
+
+        if (timeout.HasValue)
         {
             return $$"""
                 var timerTask = context.CreateTimer(TimeSpan.FromTicks({{timeout.Value.Ticks}}));
-                var activityTask = context.CallActivityAsync<BpmnWorkflowState>(nameof({{className}}), state);
+                var activityTask = context.CallActivityAsync<{{outputType}}>(nameof({{className}}), state);
                 var task = await Task.WaitAny(timerTask, activityTask);
                 if (task == timerTask)
                 {
                     throw new TaskCanceledException();
                 }
-                state.Merge(await activityTask);
+                else
+                {
+                    {{outputAssignment}}await activityTask;
+                }
                 """;
         }
         else
         {
-            return $"state.Merge(await context.CallActivityAsync<BpmnWorkflowState>(nameof({className}), state));";
+            return $"{outputAssignment}await context.CallActivityAsync<{outputType}>(nameof({className}), state);";
         }
     }
 
-    private MethodResult GenerateUserTask(UserTask userTask, TimeSpan? timeout)
+    private MethodResult GenerateUserTask(UserTask userTask, DaprParameter outputParameter, TimeSpan? timeout)
     {
-        return new(GenerateWaitForExternalEvent($"{userTask.Id}Completed", timeout), true, true);
+        return new(GenerateWaitForExternalEvent($"{userTask.Id}Completed", outputParameter, timeout), true, true);
     }
 
-    private MethodResult GenerateReceiveTask(GenerateWorkflowContext ctx, ReceiveTask receiveTask, TimeSpan? timeout)
+    private MethodResult GenerateReceiveTask(GenerateWorkflowContext ctx, ReceiveTask receiveTask, DaprParameter outputParameter, TimeSpan? timeout)
     {
         var messageName = ctx.Definitions.RootElements.OfType<Message>().FirstOrDefault(x => x.Id == $"{receiveTask.MessageRef}")?.Name ?? $"{receiveTask.Id}Completed";
-        return new(GenerateWaitForExternalEvent(messageName, timeout), true, true);
+        return new(GenerateWaitForExternalEvent(messageName, outputParameter, timeout), true, true);
     }
 
-    private MethodResult GenerateServiceTask(GenerateWorkflowContext ctx, ServiceTask serviceTask, TimeSpan? timeout)
+    private MethodResult GenerateServiceTask(GenerateWorkflowContext ctx, ServiceTask serviceTask, DaprParameter outputParameter, TimeSpan? timeout)
     {
-        var className = GenerateActivityClass(ctx, serviceTask);
-        return new(GenerateCallActivity(className, timeout), true, true);
+        var className = GenerateActivityClass(ctx, serviceTask, outputParameter);
+        return new(GenerateCallActivity(className, outputParameter, timeout), true, true);
     }
 
     private MethodResult GenerateEndEvent()
     {
-        return new("return Task.FromResult(Array.Empty<CallHandlerAsync>());", false, false);
+        return new("return Task.FromResult(Array.Empty<CallHandlerResult>());", false, false);
     }
 
     private MethodResult GenerateStartEvent() => new("", false, true);
     
+    private MethodResult GenerateParallelGateway(ParallelGateway parallelGateway)
+    {
+        var incomingFlowIds = parallelGateway.Incoming.Select(x => x.ToString()).ToList();
+        var src = $$"""
+            var entryId = _parallelGatewayEntries.AddOrUpdate("{{parallelGateway.Id}}", 0, (_,v) => v + 1);
+            SignalIncomingFlow(flowId);
+            await LogAsync(context, $"[ParallelGateway {{parallelGateway.Id}}][{entryId}][Replaying={context.IsReplaying}] Incoming flow ids: {{string.Join(", ", incomingFlowIds)}}, semaphores: {string.Join(", ", _parallelGatewayFlows.Select(x => $"{x.Key}={x.Value.CurrentCount}"))}");
+            if(!(await WaitForIncomingFlowsAsync({{string.Join(", ", incomingFlowIds.Select(x => $"\"{x}\""))}})))
+            {
+                await LogAsync(context, $"[ParallelGateway {{parallelGateway.Id}}][{entryId}][Replaying={context.IsReplaying}] No need to execute outgoing flows, it is handled by another call");
+                return Array.Empty<CallHandlerResult>();
+            }
+            await LogAsync(context, $"[ParallelGateway {{parallelGateway.Id}}][{entryId}][Replaying={context.IsReplaying}] All incoming flows have arrived, returning outgoing flows");
+            """;
+        return new(src, true, true);
+    }
+
     private MethodResult GenerateExclusiveGateway(GenerateWorkflowContext ctx, ExclusiveGateway exclusiveGateway)
     {
         var outgoingFlows = ctx.Process.FlowElements.OfType<SequenceFlow>().Where(x => exclusiveGateway.Outgoing.Any(y => y.ToString() == x.Id)).ToList();
@@ -266,9 +387,9 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
         {
             var target = ctx.Process.FlowElements.FirstOrDefault(x => x.Id == conditionFlows[i].TargetRef) ?? throw new DiagnosticException(TargetDoesNotExist, null, conditionFlows[i].TargetRef, conditionFlows[i].Id, conditionFlows[i].SourceRef);
             sourceBuilder.AppendLine($$"""
-                {{(i > 0 ? "else " : "")}}if ({{conditionFlows[i].ConditionExpression.Text.FirstOrDefault()}})
+                {{(i > 0 ? "else " : "")}}if (state.{{conditionFlows[i].ConditionExpression.Text.FirstOrDefault()}})
                 {
-                    return Task.FromResult<CallHandlerAsync[]>(new CallHandlerAsync[] { Call{{target.Id}}Async });
+                    return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] { new CallHandlerResult(Call{{target.Id}}Async, "{{outgoingFlows[i].Id}}") });
                 }
                 """);
         }
@@ -282,14 +403,14 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                 sourceBuilder.AppendLine($$"""
                     else
                     {
-                        return Task.FromResult<CallHandlerAsync[]>(new CallHandlerAsync[] { Call{{target.Id}}Async });
+                        return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] { new CallHandlerResult(Call{{target.Id}}Async, "{{lastFlow.Id}}") });
                     }
                     """);
             }
             else
             {
                 sourceBuilder.AppendLine($$"""
-                    return Task.FromResult<CallHandlerAsync[]>(new CallHandlerAsync[] { Call{{target.Id}}Async });
+                    return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] { new CallHandlerResult(Call{{target.Id}}Async, "{{lastFlow.Id}}") });
                     """);
             }
         }
@@ -340,15 +461,19 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
     private string GenerateOutgoingFlows(GenerateWorkflowContext ctx, BaseElement elem)
     {
         var outgoingFlows = ctx.Process.FlowElements.OfType<SequenceFlow>().Where(x => x.SourceRef == elem.Id);
-        var targets = ctx.Process.FlowElements.Where(x => outgoingFlows.Any(y => x.Id == y.TargetRef)).Select(x => $"Call{x.Id}Async");
+        var targets = from o in outgoingFlows
+                      from f in ctx.Process.FlowElements
+                      where f.Id == o.TargetRef
+                      select $"new CallHandlerResult(Call{f.Id}Async, \"{o.Id}\")";
+        //var targets = ctx.Process.FlowElements.Where(x => outgoingFlows.Any(y => x.Id == y.TargetRef)).Select(x => $"Call{x.Id}Async");
         return string.Join(", ", targets);
     }
 
-    private string GenerateActivityClass(GenerateWorkflowContext ctx, FlowElement activityClass) 
+    private string GenerateActivityClass(GenerateWorkflowContext ctx, FlowElement activityClass, DaprParameter outputParameter) 
     {
         var id = activityClass.Id.Capatilize();
         var className = $"{id}Activity";
-        
+
         if (!ctx.GeneratedClasses.Contains(className))
         {
             var src = $$"""
@@ -357,7 +482,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
 
             namespace {{ctx.RootNamespace}}.Workflows.Activities
             {
-                public partial class {{className}} : WorkflowActivity<BpmnWorkflowState, BpmnWorkflowState>
+                public partial class {{className}} : WorkflowActivity<{{ctx.WorkflowStateClassName}}, {{outputParameter?.Type ?? "object"}}>
                 {
                 }
             }
@@ -432,7 +557,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                     }
 
                     [HttpPost("")]
-                    public async Task<string> NewWorkflowAsync(BpmnWorkflowState state)
+                    public async Task<string> NewWorkflowAsync({{ctx.WorkflowInputType}} state)
                     {
                         var instanceId = Guid.NewGuid().ToString("N");
                         await _workflowClient.ScheduleNewWorkflowAsync(
@@ -451,16 +576,18 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                 UserTask ut => $"{ut.Id}Completed",
                 _ => null
             };
+
             if (messageName is not null)
             {
+                var type = elem.GetDaprOutputParameters().FirstOrDefault()?.Type ?? "object";
                 sourceBuilder.AppendLine($$"""
                             [HttpPost("{instanceId}/Raise{{messageName}}")]
-                            public async Task<IActionResult> Raise{{messageName}}Async(string instanceId, [FromBody] BpmnWorkflowState state)
+                            public async Task<IActionResult> Raise{{messageName}}Async(string instanceId, [FromBody] {{type}} input)
                             {
                                 await _workflowClient.RaiseEventAsync(
                                     instanceId: instanceId,
                                     eventName: "{{messageName}}",
-                                    eventPayload: state);
+                                    eventPayload: input);
                                 return Ok();
                             }
                     """);
@@ -500,6 +627,26 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             }
             """;
         ctx.GeneratorExecutionContext.AddSource("LogActivity.g.cs", src);
+    }
+
+    private void GenerateWorkflowStateClass(GenerateWorkflowContext ctx)
+    {
+        var propDefs = string.Join("\r\n", ctx.WorkflowStateProperties
+            .Where(x => !x.Name.Contains("."))
+            .Select(x => $"public {x.Type} {x.Name} {{ get; set; }}")
+            .Distinct());
+
+        var src = $$"""
+            namespace {{ctx.RootNamespace}}.Workflows
+            {
+                public partial class {{ctx.WorkflowStateClassName}}
+                {
+            {{propDefs.Indent(2)}}
+                }
+            }
+            """;
+
+        ctx.GeneratorExecutionContext.AddSource($"{ctx.WorkflowStateClassName}.g.cs", src);
     }
 
     public void Initialize(GeneratorInitializationContext context)

@@ -1,9 +1,9 @@
 ﻿using Dapr.Workflow;
 using System.Diagnostics;
 
-#if DEBUG
-Debugger.Launch();
-#endif
+//#if DEBUG
+//Debugger.Launch();
+//#endif
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
