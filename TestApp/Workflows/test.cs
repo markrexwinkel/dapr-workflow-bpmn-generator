@@ -81,7 +81,7 @@
 
 //        public override async Task<TestApp.Models.ApplicationResult> RunAsync(WorkflowContext context, TestApp.Models.LoanApplication loanApplication)
 //        {
-            
+
 
 //            var state = new LoanApplicationWorkflowState
 //            {
@@ -205,6 +205,7 @@
 
 //        private Task<CallHandlerAsync[]> Callgwy_ProposalAcceptedAsync(WorkflowContext context, LoanApplicationWorkflowState state)
 //        {
+            
 //            if (state.ProposalAccepted)
 //            {
 //                return Task.FromResult<CallHandlerAsync[]>(new CallHandlerAsync[] { CallRegisterContractAsync });

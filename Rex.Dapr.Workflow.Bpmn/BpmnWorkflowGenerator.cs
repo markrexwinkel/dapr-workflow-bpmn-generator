@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Xml;
@@ -61,6 +62,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                     GenerateControllerClass(ctx);
                 }
             }
+            GenerateParallelGatewayActivityClass(context, rootNamespace);
         }
         catch(DiagnosticException ex)
         {
@@ -356,16 +358,45 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
     private MethodResult GenerateParallelGateway(ParallelGateway parallelGateway)
     {
         var incomingFlowIds = parallelGateway.Incoming.Select(x => x.ToString()).ToList();
+        //var src = $$"""
+        //    var entryId = _parallelGatewayEntries.AddOrUpdate("{{parallelGateway.Id}}", 0, (_,v) => v + 1);
+        //    SignalIncomingFlow(flowId);
+        //    await LogAsync(context, $"[ParallelGateway {{parallelGateway.Id}}][{entryId}][Replaying={context.IsReplaying}] Incoming flow ids: {{string.Join(", ", incomingFlowIds)}}, semaphores: {string.Join(", ", _parallelGatewayFlows.Select(x => $"{x.Key}={x.Value.CurrentCount}"))}");
+        //    if(!(await WaitForIncomingFlowsAsync({{string.Join(", ", incomingFlowIds.Select(x => $"\"{x}\""))}})))
+        //    {
+        //        await LogAsync(context, $"[ParallelGateway {{parallelGateway.Id}}][{entryId}][Replaying={context.IsReplaying}] No need to execute outgoing flows, it is handled by another call");
+        //        return Array.Empty<CallHandlerResult>();
+        //    }
+        //    await LogAsync(context, $"[ParallelGateway {{parallelGateway.Id}}][{entryId}][Replaying={context.IsReplaying}] All incoming flows have arrived, returning outgoing flows");
+        //    """;
         var src = $$"""
             var entryId = _parallelGatewayEntries.AddOrUpdate("{{parallelGateway.Id}}", 0, (_,v) => v + 1);
-            SignalIncomingFlow(flowId);
-            await LogAsync(context, $"[ParallelGateway {{parallelGateway.Id}}][{entryId}][Replaying={context.IsReplaying}] Incoming flow ids: {{string.Join(", ", incomingFlowIds)}}, semaphores: {string.Join(", ", _parallelGatewayFlows.Select(x => $"{x.Key}={x.Value.CurrentCount}"))}");
-            if(!(await WaitForIncomingFlowsAsync({{string.Join(", ", incomingFlowIds.Select(x => $"\"{x}\""))}})))
+            var incomingFlowIds = new List<string>() { {{ string.Join(", ", incomingFlowIds.Select(x => $"\"{x}\"")) }} };
+            
+            if(!_parallelGatewaysWaiting.TryAdd("{{parallelGateway.Id}}", 0))
             {
-                await LogAsync(context, $"[ParallelGateway {{parallelGateway.Id}}][{entryId}][Replaying={context.IsReplaying}] No need to execute outgoing flows, it is handled by another call");
+                await LogAsync(context, $"[Parallel Gateway {{parallelGateway.Id}}][{entryId}] Already waiting send event for flow {flowId}");
+                await context.CallActivityAsync<object>(nameof(ParallelGatewayActivity), flowId);
                 return Array.Empty<CallHandlerResult>();
             }
-            await LogAsync(context, $"[ParallelGateway {{parallelGateway.Id}}][{entryId}][Replaying={context.IsReplaying}] All incoming flows have arrived, returning outgoing flows");
+
+            try
+            {
+                var waitForFlowIds = incomingFlowIds.Where(x => x != flowId).ToList();
+                if(waitForFlowIds.Count > 0)
+                {
+                    await LogAsync(context, $"[Parallel Gateway {{parallelGateway.Id}}][{entryId}] Waiting for flows {string.Join(", ", waitForFlowIds)}");
+                    await Task.WhenAll(waitForFlowIds.Select(x => context.WaitForExternalEventAsync<object>(x)));
+                }
+                else
+                {
+                    await LogAsync(context, "[Parallel Gateway {{parallelGateway.Id}}][{entryId}] no flows to wait for, returning outgoing flows");
+                }
+            }
+            finally
+            {
+                _parallelGatewaysWaiting.TryRemove("{{parallelGateway.Id}}", out _);
+            }
             """;
         return new(src, true, true);
     }
@@ -511,6 +542,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                         {
                             options.RegisterWorkflow<{{ctx.WorkflowClassName}}>();
                             options.RegisterActivity<{{ctx.WorkflowClassName}}LogActivity>();
+                            options.RegisterActivity<ParallelGatewayActivity>();
             """);
         foreach (var className in ctx.GeneratedClasses.Where(x => x.EndsWith("Activity")))
         {
@@ -627,6 +659,33 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             }
             """;
         ctx.GeneratorExecutionContext.AddSource("LogActivity.g.cs", src);
+    }
+
+    private void GenerateParallelGatewayActivityClass(GeneratorExecutionContext ctx, string rootNamespace) 
+    {
+        var src = $$"""
+            using Dapr.Workflow;
+
+            namespace {{rootNamespace}}.Workflows.Activities
+            {
+                public class ParallelGatewayActivity : WorkflowActivity<string, object>
+                {
+                    private readonly DaprWorkflowClient _client;
+
+                    public ParallelGatewayActivity(DaprWorkflowClient workflowClient)
+                    {
+                        _client = workflowClient;
+                    }
+
+                    public override async Task<object> RunAsync(WorkflowActivityContext context, string message)
+                    {
+                        await _client.RaiseEventAsync(context.InstanceId, message);
+                        return null;
+                    }
+                }
+            }
+            """;
+        ctx.AddSource("ParallelGatewayActivity.g.cs", src);
     }
 
     private void GenerateWorkflowStateClass(GenerateWorkflowContext ctx)
