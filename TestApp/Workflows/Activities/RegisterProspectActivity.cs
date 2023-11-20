@@ -1,5 +1,5 @@
 ﻿using Dapr.Workflow;
-using Rex.Dapr.Workflow.Bpmn;
+using TestApp.Models;
 
 namespace TestApp.Workflows.Activities;
 
@@ -12,9 +12,16 @@ partial class RegisterProspectActivity
         _logger = logger;
     }
 
-    public override Task<BpmnWorkflowState> RunAsync(WorkflowActivityContext context, BpmnWorkflowState input)
+    public override Task<CustomerInfo> RunAsync(WorkflowActivityContext context, LoanApplicationWorkflowState input)
     {
-        _logger.LogInformation($"{nameof(RegisterProspectActivity)}.RunAsync called");
-        return Task.FromResult(input);
+        var customerInfo = new CustomerInfo(
+            Id: Guid.NewGuid().ToString("D"),
+            Name: input.LoanApplication.ApplicantName,
+            OutstandingAmount: 0,
+            HasDefaulted: false);
+
+        _logger.LogInformation($"[Workflow {context.InstanceId}] - New customer was registered.");
+
+        return Task.FromResult<CustomerInfo>(customerInfo);
     }
 }

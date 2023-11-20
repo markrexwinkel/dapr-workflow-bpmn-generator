@@ -1,5 +1,4 @@
 ﻿using Dapr.Workflow;
-using Rex.Dapr.Workflow.Bpmn;
 
 namespace TestApp.Workflows.Activities;
 
@@ -12,9 +11,9 @@ partial class RegisterContractActivity
         _logger = logger;
     }
 
-    public override Task<BpmnWorkflowState> RunAsync(WorkflowActivityContext context, BpmnWorkflowState input)
+    public override Task<object> RunAsync(WorkflowActivityContext context, LoanApplicationWorkflowState input)
     {
-        _logger.LogInformation($"{nameof(RegisterContractActivity)}.RunAsync called");
-        return Task.FromResult(input);
+        _logger.LogInformation($"[Workflow {context.InstanceId}] - Contract was registered.");
+        return Task.FromResult<object>(null);
     }
 }
