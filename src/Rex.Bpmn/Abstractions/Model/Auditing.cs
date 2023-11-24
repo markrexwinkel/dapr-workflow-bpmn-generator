@@ -1,10 +1,9 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tAuditing", Namespace = Namespaces.Bpmn)]
+[XmlRoot("auditing", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class Auditing : BaseElement
 {
-    [XmlType("tAuditing", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("auditing", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class Auditing : BaseElement
-    {
-    }
 }

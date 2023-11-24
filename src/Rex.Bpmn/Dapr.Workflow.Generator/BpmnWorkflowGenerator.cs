@@ -109,7 +109,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             {
                 public class {{ctx.WorkflowClassName}} : BpmnWorkflow<{{ctx.WorkflowInputType}}, {{ctx.WorkflowOutputType}}, {{ctx.WorkflowStateClassName}}>
                 {
-                    private readonly ConcurrentDictionary<string, int> _parallelGatewayEntries = new ConcurrentDictionary<string, int>();
+                    
 
                     protected override async Task<{{ctx.WorkflowOutputType}}> RunInternalAsync(WorkflowContext context, {{ctx.WorkflowInputType}} input)
                     {
@@ -121,14 +121,14 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                                 {{(outputParameter is null ? string.Empty : $"{outputParameter.Name} = new()")}}
                             };
 
-                            var tasks = new List<Task<CallHandlerResult[]>>() { ExecuteActivityAsync(Call{{startElement.Id}}Async, context, state, null) };
+                            var tasks = new List<Task<CallHandlerResult[]>>() { ExecuteActivityAsync(Call{{startElement.Id}}Async, context, state, null, "{{startElement.Id}}") };
                             while(tasks.Count > 0)
                             {
                                 Task<CallHandlerResult[]> readyTask = null;
                                 try
                                 {
                                     readyTask = await Task.WhenAny(tasks);
-                                    tasks.AddRange((await readyTask).Select(x => ExecuteActivityAsync(x.Next, context, state, x.FlowId)));
+                                    tasks.AddRange((await readyTask).Select(x => ExecuteActivityAsync(x.Next, context, state, x.FlowId, x.ActivityId)));
                                 }
                                 finally
                                 {
@@ -177,18 +177,11 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
         ctx.GeneratorExecutionContext.AddSource($"{ctx.WorkflowClassName}.g.cs", sourceBuilder.ToString());
     }
 
-    private class MethodResult
+    private class MethodResult(string body, bool isAsync, bool generateOutgoingFlows)
     {
-        public MethodResult(string body, bool isAsync, bool generateOutgoingFlows)
-        {
-            Body = body;
-            IsAsync = isAsync;
-            GenerateOutgoingFlows = generateOutgoingFlows;
-        }
-
-        public string Body { get; }
-        public bool IsAsync { get; }
-        public bool GenerateOutgoingFlows { get; }
+        public string Body { get; } = body;
+        public bool IsAsync { get; } = isAsync;
+        public bool GenerateOutgoingFlows { get; } = generateOutgoingFlows;
     }
 
     private string GenerateElement(GenerateWorkflowContext ctx, FlowNode elem)
@@ -209,10 +202,10 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             UserTask userTask => GenerateUserTask(userTask, outputParameter, timeout),
             ReceiveTask receiveTask => GenerateReceiveTask(ctx, receiveTask, outputParameter, timeout),
             IntermediateCatchEvent catchEvent => GenerateIntermediateCatchEvent(ctx, catchEvent, outputParameter, timeout),
-            IntermediateThrowEvent throwEvent => GenerateIntermediateThrowEvent(ctx, throwEvent, outputParameter, timeout),
+            IntermediateThrowEvent throwEvent => GenerateIntermediateThrowEvent(ctx, throwEvent),
             StartEvent => GenerateStartEvent(),
             SubProcess subProcess => GenerateSubProcess(ctx, subProcess, timeout),
-            CallActivity callActivity => GenerateBpmnCallActivity(ctx, callActivity, outputParameter, timeout),
+            CallActivity callActivity => GenerateBpmnCallActivity(callActivity, outputParameter, timeout),
             ManualTask => new(string.Empty, false, true),
             _ => throw new DiagnosticException(ElementNotSupported, null, elem?.GetType().FullName)
         };
@@ -272,7 +265,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
 
     private string GenerateFlowNodeMethodSignature(GenerateWorkflowContext ctx, FlowNode flowNode, bool isAsync = true)
     {
-        return $"private {(isAsync ? "async " : "")}Task<CallHandlerResult[]> Call{flowNode.Id}Async(WorkflowContext context, {ctx.WorkflowStateClassName} state, string flowId)";
+        return $"private {(isAsync ? "async " : "")}Task<CallHandlerResult[]> Call{flowNode.Id}Async(WorkflowContext context, {ctx.WorkflowStateClassName} state, CallHandlerContext callContext)";
     }
 
     private string GenerateWaitForExternalEvent(string messageName, DaprParameter outputParameter, TimeSpan? timeout)
@@ -344,7 +337,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
         return new(src, true, true);
     }
 
-    private MethodResult GenerateBpmnCallActivity(GenerateWorkflowContext ctx, CallActivity callActivity, DaprParameter outputParameter, TimeSpan? timeout)
+    private MethodResult GenerateBpmnCallActivity(CallActivity callActivity, DaprParameter outputParameter, TimeSpan? timeout)
     {
         var outputType = outputParameter is null ? "object" : outputParameter.Type;
         var outputAssignment = outputParameter is not null ? $"state.{outputParameter.Name} = " : string.Empty;
@@ -403,32 +396,24 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
     {
         var incomingFlowIds = parallelGateway.Incoming.Select(x => x.ToString()).ToList();
         var src = $$"""
-            var entryId = _parallelGatewayEntries.AddOrUpdate("{{parallelGateway.Id}}", 0, (_,v) => v + 1);
             var incomingFlowIds = new List<string>() { {{ string.Join(", ", incomingFlowIds.Select(x => $"\"{x}\"")) }} };
             
-            if(entryId > 0)
+            if(callContext.EntryId > 0)
             {
-                await LogAsync(context, $"[Parallel Gateway {{parallelGateway.Id}}][{entryId}] Already waiting send event for flow {flowId}");
-                await context.CallActivityAsync<object>(nameof(SendLocalEventActivity), new SendLocalEvent { Message = flowId });
+                await LogAsync(context, $"[Parallel Gateway {{parallelGateway.Id}}][{callContext.EntryId}] Already waiting send event for flow {callContext.FlowId}");
+                await context.CallActivityAsync<object>(nameof(SendLocalEventActivity), new SendLocalEvent { Message = callContext.FlowId });
                 return Array.Empty<CallHandlerResult>();
             }
-
-            try
+            
+            var waitForFlowIds = incomingFlowIds.Where(x => x != callContext.FlowId).ToList();
+            if(waitForFlowIds.Count > 0)
             {
-                var waitForFlowIds = incomingFlowIds.Where(x => x != flowId).ToList();
-                if(waitForFlowIds.Count > 0)
-                {
-                    await LogAsync(context, $"[Parallel Gateway {{parallelGateway.Id}}][{entryId}] Waiting for flows {string.Join(", ", waitForFlowIds)}");
-                    await Task.WhenAll(waitForFlowIds.Select(x => context.WaitForExternalEventAsync<object>(x)));
-                }
-                else
-                {
-                    await LogAsync(context, "[Parallel Gateway {{parallelGateway.Id}}][{entryId}] no flows to wait for, returning outgoing flows");
-                }
+                await LogAsync(context, $"[Parallel Gateway {{parallelGateway.Id}}][{callContext.EntryId}] Waiting for flows {string.Join(", ", waitForFlowIds)}");
+                await Task.WhenAll(waitForFlowIds.Select(x => context.WaitForExternalEventAsync<object>(x)));
             }
-            finally
+            else
             {
-                _parallelGatewayEntries.TryRemove("{{parallelGateway.Id}}", out _);
+                await LogAsync(context, "[Parallel Gateway {{parallelGateway.Id}}][{callContext.EntryId}] no flows to wait for, returning outgoing flows");
             }
             """;
         return new(src, true, true);
@@ -447,52 +432,45 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             var condition = outgoingFlow.ConditionExpression.Text.FirstOrDefault();
             if (string.IsNullOrEmpty(condition))
             {
-                outgoingFlowsBuilder.AppendLine($"outgoingCalls.Add(new CallHandlerResult(Call{target.Id}Async, \"{outgoingFlow.Id}\"));");
+                outgoingFlowsBuilder.AppendLine($"outgoingCalls.Add(new CallHandlerResult(Call{target.Id}Async, \"{outgoingFlow.Id}\", \"{target.Id}\"));");
             }
             else
             {
                 outgoingFlowsBuilder.AppendLine($$"""
                     if (state.{{condition}})
                     {
-                        outgoingCalls.Add(new CallHandlerResult(Call{{target.Id}}Async, "{{outgoingFlow.Id}}"));
+                        outgoingCalls.Add(new CallHandlerResult(Call{{target.Id}}Async, "{{outgoingFlow.Id}}", "{{target.Id}}"));
                     }
                     """);
             }
         }
 
         var src = $$"""
-            var entryId = _parallelGatewayEntries.AddOrUpdate("{{inclusiveGateway.Id}}", 0, (_,v) => v + 1);
             var incomingFlowIds = new List<string>() { {{string.Join(", ", incomingFlowIds.Select(x => $"\"{x}\""))}} };
             
-            if(entryId > 0)
+            if(callContext.EntryId > 0)
             {
-                await LogAsync(context, $"[Parallel Gateway {{inclusiveGateway.Id}}][{entryId}] Already waiting send event for flow {flowId}");
-                await context.CallActivityAsync<object>(nameof(SendLocalEventActivity), new SendLocalEvent { Message = flowId});
+                await LogAsync(context, $"[Parallel Gateway {{inclusiveGateway.Id}}][{callContext.EntryId}] Already waiting send event for flow {callContext.FlowId}");
+                await context.CallActivityAsync<object>(nameof(SendLocalEventActivity), new SendLocalEvent { Message = callContext.FlowId});
                 return Array.Empty<CallHandlerResult>();
             }
 
-            try
+            
+            var waitForFlowIds = incomingFlowIds.Where(x => x != callContext.FlowId).ToList();
+            if(waitForFlowIds.Count > 0)
             {
-                var waitForFlowIds = incomingFlowIds.Where(x => x != flowId).ToList();
-                if(waitForFlowIds.Count > 0)
-                {
-                    await LogAsync(context, $"[Parallel Gateway {{inclusiveGateway.Id}}][{entryId}] Waiting for flows {string.Join(", ", waitForFlowIds)}");
-                    await Task.WhenAll(waitForFlowIds.Select(x => context.WaitForExternalEventAsync<object>(x)));
-                }
-                else
-                {
-                    await LogAsync(context, "[Parallel Gateway {{inclusiveGateway.Id}}][{entryId}] no flows to wait for, returning outgoing flows");
-                }
-                var outgoingCalls = new List<CallHandlerResult[]>();
-
-                {{outgoingFlowsBuilder.ToString().Indent(1)}}
-
-                return outgoingCalls.ToArray();
+                await LogAsync(context, $"[Parallel Gateway {{inclusiveGateway.Id}}][{callContext.EntryId}] Waiting for flows {string.Join(", ", waitForFlowIds)}");
+                await Task.WhenAll(waitForFlowIds.Select(x => context.WaitForExternalEventAsync<object>(x)));
             }
-            finally
+            else
             {
-                _parallelGatewayEntries.TryRemove("{{inclusiveGateway.Id}}", out _);
+                await LogAsync(context, "[Parallel Gateway {{inclusiveGateway.Id}}][{callContext.EntryId}] no flows to wait for, returning outgoing flows");
             }
+            var outgoingCalls = new List<CallHandlerResult[]>();
+
+            {{outgoingFlowsBuilder.ToString().Indent(1)}}
+
+            return outgoingCalls.ToArray();
             """;
         return new(src, true, false);
     }
@@ -516,7 +494,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             sourceBuilder.AppendLine($$"""
                 {{(i > 0 ? "else " : "")}}if (state.{{conditionFlows[i].ConditionExpression.Text.FirstOrDefault()}})
                 {
-                    return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] { new CallHandlerResult(Call{{target.Id}}Async, "{{outgoingFlows[i].Id}}") });
+                    return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] { new CallHandlerResult(Call{{target.Id}}Async, "{{outgoingFlows[i].Id}}", "{{target.Id}}") });
                 }
                 """);
         }
@@ -530,14 +508,14 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                 sourceBuilder.AppendLine($$"""
                     else
                     {
-                        return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] { new CallHandlerResult(Call{{target.Id}}Async, "{{lastFlow.Id}}") });
+                        return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] { new CallHandlerResult(Call{{target.Id}}Async, "{{lastFlow.Id}}", "{{target.Id}}") });
                     }
                     """);
             }
             else
             {
                 sourceBuilder.AppendLine($$"""
-                    return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] { new CallHandlerResult(Call{{target.Id}}Async, "{{lastFlow.Id}}") });
+                    return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] { new CallHandlerResult(Call{{target.Id}}Async, "{{lastFlow.Id}}", "{{target.Id}}") });
                     """);
             }
         }
@@ -550,7 +528,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
         var eventDefinition = catchEvent.GetEventDefinition(ctx.Definitions);
         return eventDefinition switch
         {
-            TimerEventDefinition ted => GenerateIntermediateTimerCatchEvent(ctx, catchEvent, ted),
+            TimerEventDefinition ted => GenerateIntermediateTimerCatchEvent(catchEvent, ted),
             MessageEventDefinition med => GenerateIntermediateMessageCatchEvent(ctx, catchEvent, med, outputParameter, timeout),
             ConditionalEventDefinition ced => GenerateIntermediateConditionalCatchEvent(ced),
             LinkEventDefinition => new MethodResult("", false, true),
@@ -559,7 +537,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
         };
     }
 
-    private MethodResult GenerateIntermediateThrowEvent(GenerateWorkflowContext ctx, IntermediateThrowEvent throwEvent, DaprParameter outputParameter, TimeSpan? timeout)
+    private MethodResult GenerateIntermediateThrowEvent(GenerateWorkflowContext ctx, IntermediateThrowEvent throwEvent)
     {
         var eventDefinition = throwEvent.GetEventDefinition(ctx.Definitions);
         return eventDefinition switch
@@ -583,7 +561,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
 
         var target = ctx.Process.FlowElements.OfType<IntermediateCatchEvent>().FirstOrDefault(x => x.Id == led.Target.ToString() && x.GetEventDefinition() is LinkEventDefinition) 
                 ?? throw new DiagnosticException(LinkTargetNotFound, null, led.Target.ToString(), throwEvent.Id);
-        var src = $"return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] {{ Call{target.Id}Async }});";
+        var src = $"return Task.FromResult<CallHandlerResult[]>(new CallHandlerResult[] {{ new CallHandlerResult(Call{target.Id}Async, null, \"{target.Id}\") }});";
         return new(src, false, false);
     }
 
@@ -616,7 +594,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
         return new(GenerateWaitForExternalEvent(messageName, outputParameter, timeout), true, true);
     }
 
-    private MethodResult GenerateIntermediateTimerCatchEvent(GenerateWorkflowContext ctx, IntermediateCatchEvent catchEvent, TimerEventDefinition ted)
+    private MethodResult GenerateIntermediateTimerCatchEvent(IntermediateCatchEvent catchEvent, TimerEventDefinition ted)
     {
         var itemText = ted.Item.Text[0];
         
@@ -650,17 +628,12 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
 
     private TimeSpan? GetTimeSpanFromDefinition(TimerEventDefinition timerDefinition)
     {
-        if(timerDefinition is null)
+        return timerDefinition?.ItemElementName switch
         {
-            return null;
-        }
-        switch(timerDefinition.ItemElementName)
-        {
-            case ItemChoiceType.TimeDuration:
-                return XmlConvert.ToTimeSpan(timerDefinition.Item.Text[0]);
-            default:
-                throw new DiagnosticException(ExpressionTypeNotSupported, null, timerDefinition.ItemElementName);
-        }
+            ItemChoiceType.TimeDuration => (TimeSpan?)XmlConvert.ToTimeSpan(timerDefinition.Item.Text[0]),
+            null => null,
+            _ => throw new DiagnosticException(ExpressionTypeNotSupported, null, timerDefinition.ItemElementName),
+        };
     }
 
     private string GenerateOutgoingFlows(GenerateWorkflowContext ctx, BaseElement elem)
@@ -669,7 +642,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
         var targets = from o in outgoingFlows
                       from f in ctx.Process.FlowElements
                       where f.Id == o.TargetRef
-                      select $"new CallHandlerResult(Call{f.Id}Async, \"{o.Id}\")";
+                      select $"new CallHandlerResult(Call{f.Id}Async, \"{o.Id}\", \"{f.Id}\")";
         //var targets = ctx.Process.FlowElements.Where(x => outgoingFlows.Any(y => x.Id == y.TargetRef)).Select(x => $"Call{x.Id}Async");
         return string.Join(", ", targets);
     }

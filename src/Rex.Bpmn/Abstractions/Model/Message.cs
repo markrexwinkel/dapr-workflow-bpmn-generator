@@ -1,16 +1,15 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
-{
-    [XmlType("tMessage", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("message", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class Message : RootElement
-    {
-        [XmlAttribute("name")]
-        public string Name { get; set; }
+namespace Rex.Bpmn.Abstractions.Model;
 
-        [XmlAttribute("itemRef")]
-        public XmlQualifiedName ItemRef { get; set; }
-    }
+[XmlType("tMessage", Namespace = Namespaces.Bpmn)]
+[XmlRoot("message", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class Message : RootElement
+{
+    [XmlAttribute("name")]
+    public string Name { get; set; }
+
+    [XmlAttribute("itemRef")]
+    public XmlQualifiedName ItemRef { get; set; }
 }

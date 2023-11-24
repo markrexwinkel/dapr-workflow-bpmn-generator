@@ -8,14 +8,9 @@ public class SendLocalEvent
     public object Input { get; set; }
 }
 
-public class SendLocalEventActivity : WorkflowActivity<SendLocalEvent, object>
+public class SendLocalEventActivity(DaprWorkflowClient workflowClient) : WorkflowActivity<SendLocalEvent, object>
 {
-    private readonly DaprWorkflowClient _client;
-
-    public SendLocalEventActivity(DaprWorkflowClient workflowClient)
-    {
-        _client = workflowClient;
-    }
+    private readonly DaprWorkflowClient _client = workflowClient;
 
     public override async Task<object> RunAsync(WorkflowActivityContext context, SendLocalEvent state)
     {

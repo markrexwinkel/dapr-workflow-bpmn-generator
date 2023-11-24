@@ -2,15 +2,14 @@
 using System.Collections.ObjectModel;
 using System.Xml.Serialization;
 
-namespace Rex.Dapr.Workflow.Bpmn.Model
-{
-    [XmlType(Namespace = "http://camunda.org/schema/1.0/bpmn")]
-    [XmlRoot(Namespace = "http://camunda.org/schema/1.0/bpmn", IsNullable = false)]
-    public class CamundaMap
-    {
-        private readonly Lazy<Collection<CamundaEntry>> _entries = new Lazy<Collection<CamundaEntry>>();
+namespace Rex.Bpmn.Abstractions.Model;
 
-        [XmlElement("entry")]
-        public Collection<CamundaEntry> Entries => _entries.Value;
-    }
+[XmlType(Namespace = Namespaces.CamundaBpmn)]
+[XmlRoot(Namespace = Namespaces.CamundaBpmn, IsNullable = false)]
+public class CamundaMap
+{
+    private readonly Lazy<Collection<CamundaEntry>> _entries = new();
+
+    [XmlElement("entry")]
+    public Collection<CamundaEntry> Entries => _entries.Value;
 }

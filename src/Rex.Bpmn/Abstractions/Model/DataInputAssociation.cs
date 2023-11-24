@@ -1,10 +1,9 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tDataInputAssociation", Namespace = Namespaces.Bpmn)]
+[XmlRoot("dataInputAssociation", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class DataInputAssociation : DataAssociation
 {
-    [XmlType("tDataInputAssociation", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("dataInputAssociation", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class DataInputAssociation : DataAssociation
-    {
-    }
 }

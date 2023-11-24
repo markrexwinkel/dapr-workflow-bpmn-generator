@@ -1,11 +1,10 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tItemKind", Namespace = Namespaces.Bpmn)]
+public enum ItemKind
 {
-    [XmlType("tItemKind", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    public enum ItemKind
-    {
-        Information,
-        Physical
-    }
+    Information,
+    Physical
 }

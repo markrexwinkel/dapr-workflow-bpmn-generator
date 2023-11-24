@@ -1,12 +1,11 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tProcessType", Namespace = Namespaces.Bpmn)]
+public enum ProcessType
 {
-    [XmlType("tProcessType", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    public enum ProcessType
-    {
-        None,
-        Public,
-        Private
-    }
+    None,
+    Public,
+    Private
 }

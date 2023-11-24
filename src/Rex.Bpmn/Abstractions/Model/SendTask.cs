@@ -2,20 +2,19 @@
 using System.Xml;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tSendTask", Namespace = Namespaces.Bpmn)]
+[XmlRoot("sendTask", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class SendTask : Task
 {
-    [XmlType("tSendTask", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("sendTask", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class SendTask : Task
-    {
-        [XmlAttribute("implementation")]
-        [DefaultValue("##WebService")]
-        public string Implementation { get; set; } = "##WebService";
+    [XmlAttribute("implementation")]
+    [DefaultValue("##WebService")]
+    public string Implementation { get; set; } = "##WebService";
 
-        [XmlAttribute("messageRef")]
-        public XmlQualifiedName MessageRef { get; set; }
+    [XmlAttribute("messageRef")]
+    public XmlQualifiedName MessageRef { get; set; }
 
-        [XmlAttribute("operationRef")]
-        public XmlQualifiedName OperationRef { get; set; }
-    }
+    [XmlAttribute("operationRef")]
+    public XmlQualifiedName OperationRef { get; set; }
 }

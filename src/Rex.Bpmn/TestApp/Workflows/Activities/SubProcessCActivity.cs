@@ -2,18 +2,13 @@
 
 namespace TestApp.Workflows.Activities
 {
-    partial class SubProcessCActivity
+    partial class SubProcessCActivity(ILogger<SubProcessCActivity> logger)
     {
-        private readonly ILogger<SubProcessCActivity> _logger;
-
-        public SubProcessCActivity(ILogger<SubProcessCActivity> logger)
-        {
-            _logger = logger;
-        }
+        private readonly ILogger<SubProcessCActivity> _logger = logger;
 
         public override Task<object> RunAsync(WorkflowActivityContext context, SubProcessWorkflowState input)
         {
-            _logger.LogInformation($"[Workflow {context.InstanceId}] - Activity C executed.");
+            _logger.LogInformation("[Workflow {InstanceId}] - Activity C executed.", context.InstanceId);
             return Task.FromResult<object>(null);
         }
     }

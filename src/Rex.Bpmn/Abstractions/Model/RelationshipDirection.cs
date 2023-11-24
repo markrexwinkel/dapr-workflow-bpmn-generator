@@ -1,13 +1,12 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tRelationshipDirection", Namespace = Namespaces.Bpmn)]
+public enum RelationshipDirection
 {
-    [XmlType("tRelationshipDirection", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    public enum RelationshipDirection
-    {
-        None,
-        Forward,
-        Backward,
-        Both
-    }
+    None,
+    Forward,
+    Backward,
+    Both
 }

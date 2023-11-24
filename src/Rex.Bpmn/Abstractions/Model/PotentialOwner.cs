@@ -1,10 +1,9 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tPotentialOwner", Namespace = Namespaces.Bpmn)]
+[XmlRoot("potentialOwner", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class PotentialOwner : HumanPerformer
 {
-    [XmlType("tPotentialOwner", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("potentialOwner", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class PotentialOwner : HumanPerformer
-    {
-    }
 }

@@ -1,13 +1,12 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tErrorEventDefinition", Namespace = Namespaces.Bpmn)]
+[XmlRoot("errorEventDefinition", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class ErrorEventDefinition : EventDefinition
 {
-    [XmlType("tErrorEventDefinition", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("errorEventDefinition", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class ErrorEventDefinition : EventDefinition
-    {
-        [XmlAttribute("errorRef")]
-        public XmlQualifiedName ErrorRef { get; set; }
-    }
+    [XmlAttribute("errorRef")]
+    public XmlQualifiedName ErrorRef { get; set; }
 }

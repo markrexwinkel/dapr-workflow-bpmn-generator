@@ -3,6 +3,8 @@ using Microsoft.Extensions.Options;
 
 namespace Rex.Bpmn.Dapr.Workflow.Services;
 
+#pragma warning disable CS0618
+
 public class BpmnWorkflowService(DaprClient client, IOptionsSnapshot<BpmnWorkflowOptions> options) : IWorkflowService
 {
     private readonly DaprClient _client = client;

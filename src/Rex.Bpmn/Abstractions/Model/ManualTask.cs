@@ -1,10 +1,9 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tManualTask", Namespace = Namespaces.Bpmn)]
+[XmlRoot("manualTask", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class ManualTask : Task
 {
-    [XmlType("tManualTask", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("manualTask", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class ManualTask : Task
-    {
-    }
 }

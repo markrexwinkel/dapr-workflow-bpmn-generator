@@ -1,19 +1,18 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tDataObject", Namespace = Namespaces.Bpmn)]
+[XmlRoot("dataObject", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class DataObject : FlowElement
 {
-    [XmlType("tDataObject", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("dataObject", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class DataObject : FlowElement
-    {
-        [XmlElement("dataState")]
-        public DataState DataState { get; set; }
+    [XmlElement("dataState")]
+    public DataState DataState { get; set; }
 
-        [XmlAttribute("itemSubjectRef")]
-        public XmlQualifiedName ItemSubjectRef { get; set; }
+    [XmlAttribute("itemSubjectRef")]
+    public XmlQualifiedName ItemSubjectRef { get; set; }
 
-        [XmlAttribute("isCollection")]
-        public bool IsCollection { get; set; }
-    }
+    [XmlAttribute("isCollection")]
+    public bool IsCollection { get; set; }
 }

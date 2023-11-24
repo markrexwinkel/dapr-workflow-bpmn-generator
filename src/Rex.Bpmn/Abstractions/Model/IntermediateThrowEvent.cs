@@ -1,10 +1,9 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tIntermediateThrowEvent", Namespace = Namespaces.Bpmn)]
+[XmlRoot("intermediateThrowEvent", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class IntermediateThrowEvent : ThrowEvent
 {
-    [XmlType("tIntermediateThrowEvent", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("intermediateThrowEvent", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class IntermediateThrowEvent : ThrowEvent
-    {
-    }
 }

@@ -1,13 +1,12 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tMultiInstanceFlowCondition", Namespace = Namespaces.Bpmn)]
+public enum MultiInstanceFlowCondition
 {
-    [XmlType("tMultiInstanceFlowCondition", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    public enum MultiInstanceFlowCondition
-    {
-        None,
-        One,
-        All,
-        Complex
-    }
+    None,
+    One,
+    All,
+    Complex
 }

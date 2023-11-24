@@ -1,13 +1,12 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("BPMNPlane", Namespace = Namespaces.BpmnDI)]
+[XmlRoot("BPMNPlane", Namespace = Namespaces.BpmnDI, IsNullable = false)]
+public class BpmnPlane : Plane
 {
-    [XmlType("BPMNPlane", Namespace = "http://www.omg.org/spec/BPMN/20100524/DI")]
-    [XmlRoot("BPMNPlane", Namespace = "http://www.omg.org/spec/BPMN/20100524/DI", IsNullable = false)]
-    public class BpmnPlane : Plane
-    {
-        [XmlAttribute("bpmnElement")]
-        public XmlQualifiedName Element { get; set; }
-    }
+    [XmlAttribute("bpmnElement")]
+    public XmlQualifiedName Element { get; set; }
 }

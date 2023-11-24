@@ -1,18 +1,11 @@
 ﻿using Dapr.Workflow;
-using System.Runtime.InteropServices;
 using TestApp.Models;
 
 namespace TestApp.Workflows.Activities;
 
 partial class DetermineExistingCustomerActivity
 {
-    private readonly ILogger<DetermineExistingCustomerActivity> _logger;
     private readonly Random _random = new();
-
-    public DetermineExistingCustomerActivity(ILogger<DetermineExistingCustomerActivity> logger)
-    {
-        _logger = logger;
-    }
 
     public override Task<CustomerInfo> RunAsync(WorkflowActivityContext context, LoanApplicationWorkflowState input)
     {

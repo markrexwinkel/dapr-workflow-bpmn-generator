@@ -1,12 +1,11 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Dapr.Workflow.Bpmn.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType(Namespace = Namespaces.CamundaBpmn)]
+[XmlRoot(Namespace = Namespaces.CamundaBpmn, IsNullable = false)]
+public class CamundaValue
 {
-    [XmlType(Namespace = "http://camunda.org/schema/1.0/bpmn")]
-    [XmlRoot(Namespace = "http://camunda.org/schema/1.0/bpmn", IsNullable = false)]
-    public class CamundaValue
-    {
-        [XmlText]
-        public string Value { get; set; }
-    }
+    [XmlText]
+    public string Value { get; set; }
 }

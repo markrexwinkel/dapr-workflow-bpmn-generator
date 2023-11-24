@@ -1,9 +1,8 @@
 ﻿using System.Collections.ObjectModel;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+public interface IDocumentation
 {
-    public interface IDocumentation
-    {
-        Collection<Documentation> Documentation { get; }
-    }
+    Collection<Documentation> Documentation { get; }
 }

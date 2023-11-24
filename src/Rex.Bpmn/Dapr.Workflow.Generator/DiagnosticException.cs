@@ -3,12 +3,7 @@ using System;
 
 namespace Rex.Bpmn.Dapr.Workflow.Generator;
 
-internal class DiagnosticException : Exception
+internal class DiagnosticException(DiagnosticDescriptor descriptor, Location location, params object[] messageArgs) : Exception
 {
-    public DiagnosticException(DiagnosticDescriptor descriptor, Location location, params object[] messageArgs)
-    {
-        Diagnostic = Diagnostic.Create(descriptor, location, messageArgs);
-    }
-
-    public Diagnostic Diagnostic { get; }
+    public Diagnostic Diagnostic { get; } = Diagnostic.Create(descriptor, location, messageArgs);
 }

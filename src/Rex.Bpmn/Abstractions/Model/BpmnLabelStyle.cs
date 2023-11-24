@@ -1,12 +1,11 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("BPMNLabelStyle", Namespace = Namespaces.BpmnDI)]
+[XmlRoot("BPMNLabelStyle", Namespace = Namespaces.BpmnDI, IsNullable = false)]
+public class BpmnLabelStyle : Style
 {
-    [XmlType("BPMNLabelStyle", Namespace = "http://www.omg.org/spec/BPMN/20100524/DI")]
-    [XmlRoot("BPMNLabelStyle", Namespace = "http://www.omg.org/spec/BPMN/20100524/DI", IsNullable = false)]
-    public class BpmnLabelStyle : Style
-    {
-        [XmlElement(Namespace = "http://www.omg.org/spec/DD/20100524/DC")]
-        public Font Font { get; set; }
-    }
+    [XmlElement(Namespace = Namespaces.BpmnDC)]
+    public Font Font { get; set; }
 }

@@ -12,7 +12,7 @@ partial class BpmnWorkflowGenerator
         public string RootNamespace { get; set; }
         public string WorkflowClassName => $"{Process.Id}Workflow";
         public string WorkflowStateClassName => $"{WorkflowClassName}State";
-        public List<DaprParameter> WorkflowStateProperties { get; } = new();
+        public List<DaprParameter> WorkflowStateProperties { get; } = [];
         public IFlowElements Process { get; set; }
         public Definitions Definitions { get; set; }
         public HashSet<string> WorkflowClasses { get; private set; } = [];

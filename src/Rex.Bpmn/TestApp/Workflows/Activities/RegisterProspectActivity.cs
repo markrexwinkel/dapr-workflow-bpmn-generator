@@ -3,14 +3,9 @@ using TestApp.Models;
 
 namespace TestApp.Workflows.Activities;
 
-partial class RegisterProspectActivity
+partial class RegisterProspectActivity(ILogger<RegisterProspectActivity> logger)
 {
-    private readonly ILogger<RegisterProspectActivity> _logger;
-
-    public RegisterProspectActivity(ILogger<RegisterProspectActivity> logger)
-    {
-        _logger = logger;
-    }
+    private readonly ILogger<RegisterProspectActivity> _logger = logger;
 
     public override Task<CustomerInfo> RunAsync(WorkflowActivityContext context, LoanApplicationWorkflowState input)
     {
@@ -20,8 +15,8 @@ partial class RegisterProspectActivity
             OutstandingAmount: 0,
             HasDefaulted: false);
 
-        _logger.LogInformation($"[Workflow {context.InstanceId}] - New customer was registered.");
+        _logger.LogInformation("[Workflow {InstanceId}] - New customer was registered.", context.InstanceId);
 
-        return Task.FromResult<CustomerInfo>(customerInfo);
+        return Task.FromResult(customerInfo);
     }
 }

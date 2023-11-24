@@ -1,13 +1,12 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tChoreographyLoopType", Namespace = Namespaces.Bpmn)]
+public enum ChoreographyLoopType
 {
-    [XmlType("tChoreographyLoopType", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    public enum ChoreographyLoopType
-    {
-        None,
-        Standard,
-        MultiInstanceSequential,
-        MultiInstanceParallel
-    }
+    None,
+    Standard,
+    MultiInstanceSequential,
+    MultiInstanceParallel
 }

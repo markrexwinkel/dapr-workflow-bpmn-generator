@@ -1,13 +1,12 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tGatewayDirection", Namespace = Namespaces.Bpmn)]
+public enum GatewayDirection
 {
-    [XmlType("tGatewayDirection", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    public enum GatewayDirection
-    {
-        Unspecified,
-        Converging,
-        Diverging,
-        Mixed
-    }
+    Unspecified,
+    Converging,
+    Diverging,
+    Mixed
 }

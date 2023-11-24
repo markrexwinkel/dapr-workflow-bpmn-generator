@@ -2,18 +2,17 @@
 using System.Collections.ObjectModel;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tCategory", Namespace = Namespaces.Bpmn)]
+[XmlRoot("category", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class Category : RootElement
 {
-    [XmlType("tCategory", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("category", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class Category : RootElement
-    {
-        private readonly Lazy<Collection<CategoryValue>> _values = new Lazy<Collection<CategoryValue>>();
+    private readonly Lazy<Collection<CategoryValue>> _values = new();
 
-        [XmlElement("categoryValue")]
-        public Collection<CategoryValue> Values => _values.Value;
+    [XmlElement("categoryValue")]
+    public Collection<CategoryValue> Values => _values.Value;
 
-        [XmlAttribute("name")]
-        public string Name { get; set; }
-    }
+    [XmlAttribute("name")]
+    public string Name { get; set; }
 }

@@ -2,18 +2,17 @@
 using System.Collections.ObjectModel;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tLaneSet", Namespace = Namespaces.Bpmn)]
+[XmlRoot("laneSet", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class LaneSet : BaseElement
 {
-    [XmlType("tLaneSet", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("laneSet", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class LaneSet : BaseElement
-    {
-        private readonly Lazy<Collection<Lane>> _lanes = new Lazy<Collection<Lane>>();
+    private readonly Lazy<Collection<Lane>> _lanes = new();
 
-        [XmlElement("lane")]
-        public Collection<Lane> Lanes => _lanes.Value;
+    [XmlElement("lane")]
+    public Collection<Lane> Lanes => _lanes.Value;
 
-        [XmlAttribute("name")]
-        public string Name { get; set; }
-    }
+    [XmlAttribute("name")]
+    public string Name { get; set; }
 }

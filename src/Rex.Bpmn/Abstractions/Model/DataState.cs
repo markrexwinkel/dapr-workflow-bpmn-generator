@@ -1,12 +1,11 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tDataState", Namespace = Namespaces.Bpmn)]
+[XmlRoot("dataState", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class DataState : BaseElement
 {
-    [XmlType("tDataState", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("dataState", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class DataState : BaseElement
-    {
-        [XmlAttribute("name")]
-        public string Name { get; set; }
-    }
+    [XmlAttribute("name")]
+    public string Name { get; set; }
 }

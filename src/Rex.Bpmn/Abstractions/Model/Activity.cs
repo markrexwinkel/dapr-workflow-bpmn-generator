@@ -17,8 +17,8 @@ namespace Rex.Bpmn.Abstractions.Model;
 [XmlInclude(typeof(Transaction))]
 [XmlInclude(typeof(AdHocSubProcess))]
 [XmlInclude(typeof(CallActivity))]
-[XmlType("tActivity", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-[XmlRoot("activity", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
+[XmlType("tActivity", Namespace = Namespaces.Bpmn)]
+[XmlRoot("activity", Namespace = Namespaces.Bpmn, IsNullable = false)]
 public class Activity : FlowNode, IDefaultSequence
 {
     private readonly Lazy<Collection<Property>> _properties = new();

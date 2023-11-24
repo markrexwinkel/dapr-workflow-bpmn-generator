@@ -1,10 +1,9 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tGlobalConversation", Namespace = Namespaces.Bpmn)]
+[XmlRoot("globalConversation", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class GlobalConversation : Collaboration
 {
-    [XmlType("tGlobalConversation", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("globalConversation", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class GlobalConversation : Collaboration
-    {
-    }
 }

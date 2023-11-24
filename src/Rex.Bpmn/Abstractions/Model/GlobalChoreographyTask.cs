@@ -1,13 +1,12 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tGlobalChoreographyTask", Namespace = Namespaces.Bpmn)]
+[XmlRoot("globalChoreographyTask", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class GlobalChoreographyTask : Choreography
 {
-    [XmlType("tGlobalChoreographyTask", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("globalChoreographyTask", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class GlobalChoreographyTask : Choreography
-    {
-        [XmlAttribute("initiatingParticipantRef")]
-        public XmlQualifiedName InitiatingParticipantRef { get; set; }
-    }
+    [XmlAttribute("initiatingParticipantRef")]
+    public XmlQualifiedName InitiatingParticipantRef { get; set; }
 }

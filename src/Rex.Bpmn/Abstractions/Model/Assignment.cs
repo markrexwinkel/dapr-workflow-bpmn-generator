@@ -1,14 +1,13 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tAssignment", Namespace = Namespaces.Bpmn)]
+[XmlRoot("assignment", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class Assignment : BaseElement
 {
-    [XmlType("tAssignment", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("assignment", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class Assignment : BaseElement
-    {
-        [XmlElement("from")]
-        public Expression From { get; set; }
-        [XmlElement("to")]
-        public Expression To { get; set; }
-    }
+    [XmlElement("from")]
+    public Expression From { get; set; }
+    [XmlElement("to")]
+    public Expression To { get; set; }
 }

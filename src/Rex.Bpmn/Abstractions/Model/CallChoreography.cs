@@ -3,18 +3,17 @@ using System.Collections.ObjectModel;
 using System.Xml;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType("tCallChoreography", Namespace = Namespaces.Bpmn)]
+[XmlRoot("callChoreography", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class CallChoreography : ChoreographyActivity
 {
-    [XmlType("tCallChoreography", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("callChoreography", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class CallChoreography : ChoreographyActivity
-    {
-        private readonly Lazy<Collection<ParticipantAssociation>> _participantAssociations = new Lazy<Collection<ParticipantAssociation>>();
+    private readonly Lazy<Collection<ParticipantAssociation>> _participantAssociations = new();
 
-        [XmlElement("participantAssociation")]
-        public Collection<ParticipantAssociation> ParticipantAssociations => _participantAssociations.Value;
+    [XmlElement("participantAssociation")]
+    public Collection<ParticipantAssociation> ParticipantAssociations => _participantAssociations.Value;
 
-        [XmlAttribute("calledChoreographyRef")]
-        public XmlQualifiedName CalledChoreographyRef { get; set; }
-    }
+    [XmlAttribute("calledChoreographyRef")]
+    public XmlQualifiedName CalledChoreographyRef { get; set; }
 }

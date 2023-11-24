@@ -3,14 +3,9 @@ using TestApp.Models;
 
 namespace TestApp.Workflows.Activities;
 
-partial class DetermineRiskProfileActivity
+partial class DetermineRiskProfileActivity(ILogger<DetermineRiskProfileActivity> logger)
 {
-    private readonly ILogger<DetermineRiskProfileActivity> _logger;
-
-    public DetermineRiskProfileActivity(ILogger<DetermineRiskProfileActivity> logger)
-    {
-        _logger = logger;
-    }
+    private readonly ILogger<DetermineRiskProfileActivity> _logger = logger;
 
     public override Task<RiskProfile> RunAsync(WorkflowActivityContext context, LoanApplicationWorkflowState input)
     {
@@ -48,9 +43,9 @@ partial class DetermineRiskProfileActivity
             riskClauses.Add(RiskClause.C);
         }
 
-        var riskProfile = new RiskProfile { RiskClass = riskClass, RiskClauses = riskClauses.ToArray() };
+        var riskProfile = new RiskProfile { RiskClass = riskClass, RiskClauses = [.. riskClauses] };
 
-        _logger.LogInformation($"[Workflow {context.InstanceId}] - Risk profile was determined: {riskProfile.Print()}.");
+        _logger.LogInformation("[Workflow {InstanceId}] - Risk profile was determined: {RiskProfile}.", context.InstanceId, riskProfile.Print());
 
         return Task.FromResult(riskProfile);
     }

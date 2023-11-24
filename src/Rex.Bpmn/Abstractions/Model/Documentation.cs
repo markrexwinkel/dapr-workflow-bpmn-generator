@@ -2,25 +2,23 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Xml;
-using System.Xml.Linq;
 using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
+namespace Rex.Bpmn.Abstractions.Model;
+
+[XmlType(Namespace = Namespaces.Bpmn)]
+[XmlRoot("documentation", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class Documentation
 {
-    [XmlType(Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("documentation", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class Documentation
-    {
-        private readonly Lazy<Collection<XmlElement>> _extensionElements = new Lazy<Collection<XmlElement>>();
+    private readonly Lazy<Collection<XmlElement>> _extensionElements = new();
 
-        [XmlAttribute("id")]
-        public string Id { get; set; }
+    [XmlAttribute("id")]
+    public string Id { get; set; }
 
-        [XmlAttribute("textFormat")]
-        [DefaultValue("text/plain")]
-        public string TextFormat { get; set; } = "text/plain";
+    [XmlAttribute("textFormat")]
+    [DefaultValue("text/plain")]
+    public string TextFormat { get; set; } = "text/plain";
 
-        [XmlAnyElement]
-        public Collection<XmlElement> ExtensionElements => _extensionElements.Value;
-    }
+    [XmlAnyElement]
+    public Collection<XmlElement> ExtensionElements => _extensionElements.Value;
 }

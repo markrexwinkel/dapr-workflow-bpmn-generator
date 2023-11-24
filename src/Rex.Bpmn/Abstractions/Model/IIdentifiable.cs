@@ -1,7 +1,6 @@
-﻿namespace Rex.Bpmn.Abstractions.Model
+﻿namespace Rex.Bpmn.Abstractions.Model;
+
+public interface IIdentifiable
 {
-    public interface IIdentifiable
-    {
-        string Id { get; }
-    }
+    string Id { get; }
 }

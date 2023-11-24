@@ -2,5 +2,5 @@
 
 public class BpmnWorkflowActivityState
 {
-    public Dictionary<string, int> Tokens { get; set; } = new();
+    public Dictionary<string, int> Tokens { get; set; } = [];
 }

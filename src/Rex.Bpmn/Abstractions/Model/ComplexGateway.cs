@@ -1,15 +1,14 @@
 ﻿using System.Xml.Serialization;
 
-namespace Rex.Bpmn.Abstractions.Model
-{
-    [XmlType("tComplexGateway", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")]
-    [XmlRoot("complexGateway", Namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL", IsNullable = false)]
-    public class ComplexGateway : Gateway, IDefaultSequence
-    {
-        [XmlElement("activationCondition")]
-        public Expression ActivationCondition { get; set; }
+namespace Rex.Bpmn.Abstractions.Model;
 
-        [XmlAttribute("default", DataType = "IDREF")]
-        public string Default { get; set; }
-    }
+[XmlType("tComplexGateway", Namespace = Namespaces.Bpmn)]
+[XmlRoot("complexGateway", Namespace = Namespaces.Bpmn, IsNullable = false)]
+public class ComplexGateway : Gateway, IDefaultSequence
+{
+    [XmlElement("activationCondition")]
+    public Expression ActivationCondition { get; set; }
+
+    [XmlAttribute("default", DataType = "IDREF")]
+    public string Default { get; set; }
 }

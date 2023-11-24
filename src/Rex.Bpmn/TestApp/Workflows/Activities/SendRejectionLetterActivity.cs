@@ -2,18 +2,13 @@
 
 namespace TestApp.Workflows.Activities;
 
-partial class SendRejectionLetterActivity
+partial class SendRejectionLetterActivity(ILogger<SendRejectionLetterActivity> logger)
 {
-    private readonly ILogger<SendRejectionLetterActivity> _logger;
-
-    public SendRejectionLetterActivity(ILogger<SendRejectionLetterActivity> logger)
-    {
-        _logger = logger;
-    }
+    private readonly ILogger<SendRejectionLetterActivity> _logger = logger;
 
     public override Task<object> RunAsync(WorkflowActivityContext context, LoanApplicationWorkflowState input)
     {
-        _logger.LogInformation($"[Workflow {context.InstanceId}] - Rejection letter was sent.");
+        _logger.LogInformation("[Workflow {InstanceId}] - Rejection letter was sent.", context.InstanceId);
         return Task.FromResult<object>(null);
     }
 }
