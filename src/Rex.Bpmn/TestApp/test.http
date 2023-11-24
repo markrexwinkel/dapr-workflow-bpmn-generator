@@ -1,0 +1,50 @@
+########################################################
+# Start Loan Application
+########################################################
+
+# @name startLoanApplication
+
+POST https://localhost:49256/LoanApplication
+Content-Type: application/json
+
+{
+    "ApplicantName": "Eric Grey",
+    "LoanAmount": 110000,
+    "YearlyGrossSalary": 80000
+}
+
+
+### 
+
+@instanceId = {{startLoanApplication.response.body.*}}
+
+###
+
+POST https://localhost:49256/LoanApplication/{{instanceId}}/RaiseAssessApplicationCompleted
+Content-Type: application/json
+
+false
+
+###
+
+POST https://localhost:49256/LoanApplication/{{instanceId}}/RaiseCustomerDecisionCompleted
+Content-Type: application/json
+
+true
+
+###
+
+POST https://localhost:49256/LoanApplication/{{instanceId}}/RaiseActivity_1ag39siCompleted
+Content-Type: application/json
+
+{
+}
+
+
+### 
+
+POST https://localhost:49256/LoanApplication/{{instanceId}}/RaiseActivity_1mp2kplCompleted
+Content-Type: application/json
+
+{
+}
