@@ -1049,6 +1049,4 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         }
         return int.MaxValue;
     }
-
-
 }
