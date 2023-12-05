@@ -1,3 +1,14 @@
+### Get XML
+
+GET https://localhost:49256/LoanApplication/xml
+
+
+### Get Diagram
+
+GET https://localhost:49256/LoanApplication/diagram
+
+
+
 ########################################################
 # Start Loan Application
 ########################################################

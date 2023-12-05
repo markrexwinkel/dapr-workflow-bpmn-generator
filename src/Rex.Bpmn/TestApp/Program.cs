@@ -6,7 +6,6 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddDaprClient();
 builder.Services.AddDaprWorkflowClient();
-builder.Services.AddBpmnWorkflows();
 builder.Services.AddLoanApplicationWorkflow();
 
 var app = builder.Build();

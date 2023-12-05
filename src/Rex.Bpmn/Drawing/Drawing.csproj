@@ -3,6 +3,8 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Rex.Bpmn.Drawing</AssemblyName>
+    <RootNamespace>Rex.Bpmn.Drawing</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

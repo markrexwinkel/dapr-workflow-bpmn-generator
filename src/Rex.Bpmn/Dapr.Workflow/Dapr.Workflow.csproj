@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Abstractions\Abstractions.csproj" />
+    <ProjectReference Include="..\Drawing\Drawing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Dapr.Workflow" Version="1.12.0" />

@@ -7,10 +7,6 @@
         <dapr:outputParameter name="ApplicationResult" type="TestApp.Models.ApplicationResult" />
       </dapr:inputOutput>
     </bpmn:extensionElements>
-    <bpmn:startEvent id="LoanApplicationReceived" name="Loan Application Received">
-      <bpmn:outgoing>Flow_03d6nsm</bpmn:outgoing>
-      <bpmn:messageEventDefinition id="MessageEventDefinition_1mbsomi" />
-    </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_03d6nsm" sourceRef="LoanApplicationReceived" targetRef="DetermineExistingCustomer" />
     <bpmn:exclusiveGateway id="gwy_ExistingCustomer" name="Existing Customer?">
       <bpmn:incoming>Flow_0ooevif</bpmn:incoming>
@@ -62,7 +58,7 @@
       <bpmn:incoming>Flow_1bka56x</bpmn:incoming>
       <bpmn:outgoing>Flow_07i3tg5</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:serviceTask id="DetermineRiskProfile" name="Determine&#10;Risk&#10;Profile">
+    <bpmn:serviceTask id="DetermineRiskProfile" name="Determine Risk Profile">
       <bpmn:extensionElements>
         <dapr:inputOutput>
           <dapr:outputParameter name="RiskProfile" type="TestApp.Models.RiskProfile" />
@@ -93,17 +89,17 @@
       <bpmn:incoming>Flow_0r0jszy</bpmn:incoming>
       <bpmn:outgoing>Flow_0ragejw</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="SendRejectionLetter" name="Send&#10;Rejection&#10;Letter">
+    <bpmn:serviceTask id="SendRejectionLetter" name="Send Rejection Letter">
       <bpmn:extensionElements />
       <bpmn:incoming>flw_LoanApproved_No</bpmn:incoming>
       <bpmn:outgoing>Flow_13gy3ar</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="SendContract" name="Send&#10;Contract">
+    <bpmn:serviceTask id="SendContract" name="Send Contract">
       <bpmn:incoming>Flow_0ragejw</bpmn:incoming>
       <bpmn:outgoing>Flow_0rj05k4</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_04247nz" sourceRef="SendProposal" targetRef="ReceiveCustomerDecision" />
-    <bpmn:serviceTask id="SendProposal" name="Send&#10;Proposal">
+    <bpmn:serviceTask id="SendProposal" name="Send Proposal">
       <bpmn:incoming>flw_LoanApproved_Yes</bpmn:incoming>
       <bpmn:outgoing>Flow_04247nz</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -207,16 +203,13 @@
     </bpmn:subProcess>
     <bpmn:sequenceFlow id="Flow_0f88w1d" sourceRef="Gateway_0092gjs" targetRef="SubProcess" />
     <bpmn:sequenceFlow id="Flow_0yby0n7" sourceRef="SubProcess" targetRef="Gateway_1uf0hys" />
+    <bpmn:startEvent id="LoanApplicationReceived" name="Loan Application Received">
+      <bpmn:outgoing>Flow_03d6nsm</bpmn:outgoing>
+    </bpmn:startEvent>
   </bpmn:process>
   <bpmn:message id="Message_2u98cd5" name="CustomerDecisionCompleted" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="LoanApplication">
-      <bpmndi:BPMNShape id="Event_1wopqui_di" bpmnElement="LoanApplicationReceived">
-        <dc:Bounds x="182" y="222" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="159" y="184.5" width="81" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_041ehgc_di" bpmnElement="gwy_ExistingCustomer" isMarkerVisible="true">
         <dc:Bounds x="395" y="215" width="50" height="50" />
         <bpmndi:BPMNLabel>
@@ -300,6 +293,12 @@
       <bpmndi:BPMNShape id="Activity_1ln3c46_di" bpmnElement="AutomaticallyApproveLoan">
         <dc:Bounds x="860" y="100" width="100" height="80" />
         <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0hcjpaa_di" bpmnElement="LoanApplicationReceived">
+        <dc:Bounds x="182" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="159" y="185" width="81" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_0sktidl_di" bpmnElement="SubProcess" isExpanded="true">
         <dc:Bounds x="1490" y="570" width="350" height="200" />

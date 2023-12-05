@@ -11,7 +11,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Abstractions", "Abstraction
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dapr.Workflow", "Dapr.Workflow\Dapr.Workflow.csproj", "{4A969B3C-C91E-4181-B227-76393B4D6802}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Drawing", "Drawing\Drawing.csproj", "{5C34104A-3248-496F-9E7D-1C05002B283F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Drawing", "Drawing\Drawing.csproj", "{5C34104A-3248-496F-9E7D-1C05002B283F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Drawing.Test", "Drawing.Test\Drawing.Test.csproj", "{D2ED1824-057C-41E1-911C-3A5523E013EF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +41,10 @@ Global
 		{5C34104A-3248-496F-9E7D-1C05002B283F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5C34104A-3248-496F-9E7D-1C05002B283F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5C34104A-3248-496F-9E7D-1C05002B283F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D2ED1824-057C-41E1-911C-3A5523E013EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D2ED1824-057C-41E1-911C-3A5523E013EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D2ED1824-057C-41E1-911C-3A5523E013EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D2ED1824-057C-41E1-911C-3A5523E013EF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

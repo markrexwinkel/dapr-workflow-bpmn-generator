@@ -2,17 +2,16 @@
 using Rex.Bpmn.Abstractions.Model;
 using SixLabors.Fonts;
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using static Rex.Bpmn.Drawing.StringHelpers;
 
 namespace Rex.Bpmn.Drawing;
 
 public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVisitor
 {
     private const string SvgNamespace = "http://www.w3.org/2000/svg";
-    //private const string XLinkNamespace = "http://www.w3.org/1999/xlink";
     private const string BiColorNamespace = "http://bpmn.io/schema/bpmn/biocolor/1.0";
 
     private const string SvgVersion = "1.1";
@@ -28,9 +27,11 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
     private XElement _root;
     private XElement _currentGroup;
     private XElement _defs;
+    private IDictionary<string, int> _tokens;
 
-    public XDocument CreateSvgDiagram(BpmnDiagram diagram)
+    public XDocument CreateSvgDiagram(BpmnDiagram diagram, IDictionary<string, int> tokens = null)
     {
+        _tokens = tokens ?? new Dictionary<string, int>();
         _document = new XDocument();
         (var width, var height) = CalculateWidthAndHeight(diagram.Plane);
         _currentGroup = new XElement(XName.Get("g", SvgNamespace));
@@ -43,7 +44,6 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         _defs = new XElement(XName.Get("defs", SvgNamespace));
         _root.Add(_defs);
         AddMarkers();
-        AddSymbols();
         VisitDiagram(diagram);
         return _document;
     }
@@ -92,29 +92,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         return ret;
     }
 
-    private void AddSymbols()
-    {
-        _defs.Add(
-            new XElement(XName.Get("symbol", SvgNamespace),
-                new XAttribute("id", "userTaskSymbol"),
-                //new XAttribute("viewBox", "0 0 20 20"),
-                new XElement(XName.Get("path", SvgNamespace),
-                        new XAttribute("fill", "none"),
-                        new XAttribute("stroke", "black"),
-                        new XAttribute("stroke-width", 1),
-                        new XAttribute("d", $"c 0.909,-0.845 1.594,-2.049 1.594,-3.385 0,-2.554 -1.805,-4.62199999 -4.357,-4.62199999 -2.55199998,0 -4.28799998,2.06799999 -4.28799998,4.62199999 0,1.348 0.974,2.562 1.89599998,3.405 -0.52899998,0.187 -5.669,2.097 -5.794,4.7560005 v 6.718 h 17 v -6.718 c 0,-2.2980005 -5.5279996,-4.5950005 -6.0509996,-4.7760005 z m -8,6 l 0,5.5 m 11,0 l 0,-5")),
-
-                new XElement(XName.Get("path", SvgNamespace),
-                    new XAttribute("fill", "none"),
-                    new XAttribute("stroke", "black"),
-                    new XAttribute("stroke-width", 1),
-                    new XAttribute("d", $"m 2.162,1.009 c 0,2.4470005 -2.158,4.4310005 -4.821,4.4310005 -2.66499998,0 -4.822,-1.981 -4.822,-4.4310005")),
-                new XElement(XName.Get("path", SvgNamespace),
-                    new XAttribute("d", $"-6.9,-3.80 c 0,0 2.25099998,-2.358 4.27399998,-1.177 2.024,1.181 4.221,1.537 4.124,0.965 -0.098,-0.57 -0.117,-3.79099999 -4.191,-4.13599999 -3.57499998,0.001 -4.20799998,3.36699999 -4.20699998,4.34799999 z")))
-                    );
-    }
-
-    private static XElement CreatePolyLine(Collection<Abstractions.Model.Point> waypoints, string fill = DefaultFillColor, string stroke = DefaultStrokeColor, float strokeWidth = 1f, string strokeLineJoin = null, string strokeLineCap = null, string strokeDashArray = null, string markerStart = null, string markerEnd = null)
+    private static XElement CreatePolyLine(Collection<Point> waypoints, string fill = DefaultFillColor, string stroke = DefaultStrokeColor, float strokeWidth = 1f, string strokeLineJoin = null, string strokeLineCap = null, string strokeDashArray = null, string markerStart = null, string markerEnd = null)
     {
         var pointsBuilder = new StringBuilder();
         for (var i = 0; i < waypoints.Count; i++)
@@ -125,7 +103,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
             {
                 pointsBuilder.Append(' ');
             }
-            pointsBuilder.Append($"{x},{y}");
+            pointsBuilder.Append(CreateCI($"{x},{y}"));
         }
         var polyline = new XElement(XName.Get("polyline", SvgNamespace),
                     new XAttribute("points", pointsBuilder),
@@ -155,28 +133,65 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         return polyline;
     }
 
-    private static string CreatePathFromConnection(BpmnEdge edge)
+    private static string CreatePathFromConnection(BpmnEdge edge, int cornerRadius = 0)
     {
-        var path = ((FormattableString)$"m {edge.WayPoints[0].X},{edge.WayPoints[0].Y} ").ToString(CultureInfo.InvariantCulture);
+        var path = CreateCI($"m {edge.WayPoints[0].X},{edge.WayPoints[0].Y} ");
         for (var i = 1; i < edge.WayPoints.Count; i++)
         {
-            path += ((FormattableString)$"L {edge.WayPoints[i].X},{edge.WayPoints[i].Y} ").ToString(CultureInfo.InvariantCulture);
+            var pointBefore = edge.WayPoints[i - 1];
+            var point = edge.WayPoints[i];
+            var pointAfter = i < edge.WayPoints.Count - 1 ? edge.WayPoints[i + 1] : null;
+            if(pointAfter is null || cornerRadius == 0)
+            {
+                path += CreateCI($"L {point.X},{point.Y} ");
+                continue;
+            }
+            var effectiveRadius = Math.Min(Math.Min(cornerRadius, VectorLength(point.X - pointBefore.X, point.Y - pointBefore.Y)), VectorLength(pointAfter.X - point.X, pointAfter.Y - point.Y));
+            if(effectiveRadius == 0)
+            {
+                path += CreateCI($"L {point.X},{point.Y} ");
+                continue;
+            }
+            var beforePoint = GetPointAtLength(point, pointBefore, effectiveRadius);
+            var beforePoint2 = GetPointAtLength(point, pointBefore, effectiveRadius * 0.5);
+            var afterPoint = GetPointAtLength(point, pointAfter, effectiveRadius);
+            var afterPoint2 = GetPointAtLength(point, pointAfter, effectiveRadius * 0.5);
+
+            path += CreateCI($"L {beforePoint.X},{beforePoint.Y} ");
+            path += CreateCI($"C {beforePoint2.X},{beforePoint2.Y},{afterPoint2.X},{afterPoint2.Y},{afterPoint.X},{afterPoint.Y}");
         }
         return path;
     }
 
+    private static double VectorLength(double x, double y) => Math.Sqrt(Math.Pow(x, 2) + Math.Pow(y, 2));
+
+    private static Point GetPointAtLength(Point start, Point end, double length)
+    {
+        var deltaX = end.X - start.X;
+        var deltaY = end.Y - start.Y;
+        var totalLength = VectorLength(deltaX, deltaY);
+        var percent = length / totalLength;
+        return new Point
+        {
+            X = start.X + deltaX * percent,
+            Y = start.Y + deltaY * percent,
+        };
+    }
+    
+
     protected override void VisitBpmnEdge(BpmnEdge bpmnEdge)
     {
         var bpmnElement = _finder.FindBaseElement(_definitions, bpmnEdge.Element.Name);
-        var fill = GetFillColor(bpmnEdge);
+        var fill = GetFillColor(bpmnEdge, "none");
         var stroke = GetStrokeColor(bpmnEdge);
         string markerStart = null;
         string markerEnd = null;
         string strokeLineJoin;
         string strokeLineCap = null;
         string strokeDashArray = null;
+        int cornerRadius = 5;
 
-        var group = new XElement(XName.Get("g", SvgNamespace));
+        var group = new XElement(XName.Get("g", SvgNamespace), new XAttribute("data-element-id", bpmnElement.Id));
         string name = null;
         switch (bpmnElement)
         {
@@ -193,7 +208,13 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
                 {
                     markerStart = "conditional-default-flow-marker";
                 }
-                group.Add(CreatePath(CreatePathFromConnection(bpmnEdge), fill, stroke, strokeLineJoin: strokeLineJoin, strokeLineCap: strokeLineCap, strokeDashArray: strokeDashArray, markerStart: markerStart, markerEnd: markerEnd));
+                group.Add(CreatePath(CreatePathFromConnection(bpmnEdge, cornerRadius), fill, stroke, strokeLineJoin: strokeLineJoin, strokeLineCap: strokeLineCap, strokeDashArray: strokeDashArray, markerStart: markerStart, markerEnd: markerEnd));
+                if(_tokens.TryGetValue(sequenceFlow.Id, out var tokenCount))
+                {
+                    var p = GetTokenMarkerPoint(bpmnEdge.WayPoints, -30);
+                    group.Add(CreateCircle((float)p.X, (float)p.Y, 10f, stroke: "none", fill: "red"));
+                    AddLabel(group, $"{tokenCount}", $"{sequenceFlow.Id}_TokenCount", new Bounds { X = p.X - 10f, Y = p.Y - 10f, Height = 20f, Width = 20f }, HorizontalAlignment.Center, VerticalAlignment.Center, 0f, "white", fontSize: 10f, fontStyle: FontStyle.Bold);
+                }
                 break;
             case Association association:
                 strokeDashArray = "0.5, 5";
@@ -224,10 +245,23 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         }
         if (bpmnEdge.Label != null && name != null)
         {
-            AddLabel(group, name, bpmnEdge.Label.Bounds, HorizontalAlignment.Center, VerticalAlignment.Center, 0f, stroke, 10f);
+            AddLabel(group, name, bpmnElement.Id, bpmnEdge.Label.Bounds, HorizontalAlignment.Center, VerticalAlignment.Center, 0f, stroke, 10f);
         }
 
         _currentGroup.Add(group);
+    }
+
+    private static Point GetTokenMarkerPoint(Collection<Point> wayPoints, float offset)
+    {
+        var last = wayPoints[^1];
+        var beforeLast = wayPoints[^2];
+        var w = last.X - beforeLast.X;
+        var h = last.Y - beforeLast.Y;
+        var z = Math.Sqrt(Math.Pow(w, 2) + Math.Pow(h, 2));
+        var zo = z + offset;
+        var nw = w * zo / z;
+        var nh = h * zo / z;
+        return new Point { X = beforeLast.X + nw, Y = beforeLast.Y + nh };
     }
 
     protected override void VisitBpmnShape(BpmnShape bpmnShape)
@@ -252,11 +286,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
                 case Activity activity:
                     AddActivityShape(bpmnShape, activity);
                     break;
-                    //case Gateway gateway:
-                    //default:
-                    //    throw new NotSupportedException("Element is not supported");
             }
-            //base.VisitBpmnShape(bpmnShape);
         }
         catch
         {
@@ -266,35 +296,25 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
 
     private void AddTextAnnotation(BpmnShape bpmnShape, TextAnnotation textAnnotation)
     {
-        var group = new XElement(XName.Get("g", SvgNamespace));
-        group.Add(CreateRectangle(bpmnShape.Bounds, 0, "none", "none"));
+        var group = new XElement(XName.Get("g", SvgNamespace), 
+            new XAttribute("data-element-id", textAnnotation.Id),
+            new XAttribute("transform", $"matrix(1 0 0 1 {bpmnShape.Bounds.X} {bpmnShape.Bounds.Y})"));
+        group.Add(CreateRectangle((float)bpmnShape.Bounds.Width, (float) bpmnShape.Bounds.Height, 0, fill: "none", stroke: "none"));
         group.Add(CreatePath(
-            Path.TextAnnotation.GetScaledPath(1f, bpmnShape.Bounds, 0f, 0f),
+            Path.TextAnnotation.GetScaledPath(1f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0f, 0f),
             stroke: GetStrokeColor(bpmnShape)
             ));
-        var text = textAnnotation.Text?.InnerText ?? string.Empty;
-        AddLabel(group, text, bpmnShape.Bounds, HorizontalAlignment.Center, VerticalAlignment.Top, 5f, GetStrokeColor(bpmnShape));
         _currentGroup.Add(group);
+        var text = textAnnotation.Text?.InnerText ?? string.Empty;
+        AddLabel(group.Parent, text, textAnnotation.Id, bpmnShape.Bounds, HorizontalAlignment.Center, VerticalAlignment.Top, 5f, GetStrokeColor(bpmnShape));
     }
-
-    //private void AddSimpleText(XElement group, string text, Bounds bounds, string stroke)
-    //{
-    //    var textElement = new XElement(XName.Get("text", SvgNamespace),
-    //        new XAttribute("x", bounds.X),
-    //        new XAttribute("y", bounds.Y),
-    //        new XAttribute("font-family", "Arial"),
-    //        new XAttribute("font-size", 12f),
-    //        new XAttribute("stroke", stroke ?? DefaultStrokeColor),
-    //        new XText(text));
-    //    group.Add(textElement);
-    //}
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex SplitRegex();
     
-    private static void AddLabel(XElement group, string text, Bounds bounds, HorizontalAlignment horizontalAlignment, VerticalAlignment verticalAlignment, float padding, string stroke, float fontSize = 12f)
+    private static void AddLabel(XElement group, string text, string id, Bounds bounds, HorizontalAlignment horizontalAlignment, VerticalAlignment verticalAlignment, float padding, string stroke, float fontSize = 12f, FontStyle fontStyle = FontStyle.Regular, bool addGroup = true)
     {
-        var font = SystemFonts.CreateFont("Arial", fontSize);
+        var font = SystemFonts.CreateFont("Arial", fontSize, fontStyle);
         var renderOptions = new TextOptions(font);
         var size = TextMeasurer.MeasureSize(text, renderOptions);
         var paddedWidth = bounds.Width - 2 * padding;
@@ -320,7 +340,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
                     lines.Add(builder.ToString().Trim());
                     builder.Clear();
                     builder.Append(word);
-                    width = 0f;
+                    width = size.Width;
                 }
             }
             if (builder.Length > 0)
@@ -338,17 +358,23 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
 
         var y = verticalAlignment == VerticalAlignment.Center ? ((float)bounds.Height - totalHeight) / 2f : padding;
         y -= sizes[0].Height / 4;
-
+        (var fontWeight, var style) = fontStyle switch
+        {
+            FontStyle.Bold => ("bold", "normal"),
+            FontStyle.BoldItalic => ("bold", "italic"),
+            FontStyle.Italic => ("normal", "italic"),
+            _ => ("normal", "normal")
+        };
         var textElement = new XElement(XName.Get("text", SvgNamespace),
             //    new XAttribute("x", bounds.X),
             //    new XAttribute("y", bounds.Y),
             new XAttribute("font-family", "Arial"),
             new XAttribute("font-size", fontSize),
+            new XAttribute("font-weight", fontWeight),
+            new XAttribute("font-style", style),
             new XAttribute("fill", stroke ?? DefaultStrokeColor));
 
-        var textGroup = new XElement(XName.Get("g", SvgNamespace),
-            new XAttribute("transform", $"matrix(1 0 0 1 {bounds.X} {bounds.Y})"),
-            textElement);
+        
 
         for (var i = 0; i < lines.Count; i++)
         {
@@ -372,18 +398,30 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
             textElement.Add(tspan);
         }
 
-
-        group.Add(textGroup);
-
+        if (addGroup)
+        {
+            var textGroup = new XElement(XName.Get("g", SvgNamespace),
+                new XAttribute("transform", CreateCI($"matrix(1 0 0 1 {bounds.X} {bounds.Y})")),
+                new XAttribute("data-element-id", $"{id}_Label"),
+                textElement);
+            group.Add(textGroup);
+        }
+        else
+        {
+            group.Add(textElement);
+        }
     }
 
-    private void AddActivityShape(BpmnShape bpmnShape, Activity activity)
+    private void AddActivityShape(BpmnShape bpmnShape, Activity activity, params object[] extraAttrs)
     {
-        var group = new XElement(XName.Get("g", SvgNamespace));
+        var group = new XElement(XName.Get("g", SvgNamespace), 
+            new XAttribute("data-element-id", activity.Id),
+            new XAttribute("transform", CreateCI($"matrix(1 0 0 1 {bpmnShape.Bounds.X} {bpmnShape.Bounds.Y})")));
         var fill = GetFillColor(bpmnShape);
         var stroke = GetStrokeColor(bpmnShape);
         float strokeWidth = 1f;
         string strokeDashArray = null;
+        bool expanded;
 
         switch (activity)
         {
@@ -391,89 +429,117 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
 
                 if (subProcess.TriggeredByEvent)
                 {
-                    strokeDashArray = "1,2";
+                    strokeDashArray = "0, 5.5";
+                    strokeWidth = 2.5f;
                 }
-                AddEmbeddedLabel(group, bpmnShape, subProcess, "center-top");
-                AttachTaskMarkers(group, bpmnShape, subProcess);
+                expanded = IsExpanded(bpmnShape, activity);
+                AddEmbeddedLabel(group, bpmnShape, subProcess, HorizontalAlignment.Center, expanded ? VerticalAlignment.Top : VerticalAlignment.Center, addGroup: false);
+                if (expanded)
+                {
+                    AttachTaskMarkers(group, bpmnShape, subProcess);
+                }
+                else
+                {
+                    AttachTaskMarkers(group, bpmnShape, subProcess, "SubProcessMarker");
+                }
                 break;
             case CallActivity callActivity:
                 strokeWidth = 5f;
-                AttachTaskMarkers(group, bpmnShape, callActivity);
+                expanded = IsExpanded(bpmnShape, activity);
+                AddEmbeddedLabel(group, bpmnShape, callActivity, HorizontalAlignment.Center, expanded ? VerticalAlignment.Top : VerticalAlignment.Center);
+                if (expanded)
+                {
+                    AttachTaskMarkers(group, bpmnShape, callActivity);
+                }
+                else
+                {
+                    AttachTaskMarkers(group, bpmnShape, callActivity, "SubProcessMarker");
+                }
                 break;
         }
 
-        group.AddFirst(CreateRectangle(bpmnShape.Bounds, TaskBorderRadius, fill, stroke, strokeWidth, strokeDashArray: strokeDashArray));
+        group.AddFirst(CreateRectangle((float) bpmnShape.Bounds.Width, (float) bpmnShape.Bounds.Height, TaskBorderRadius, fill: fill, stroke: stroke, strokeWidth: strokeWidth, strokeDashArray: strokeDashArray));
         _currentGroup.Add(group);
 
     }
 
-    private bool IsExpanded(BpmnShape bpmnShape, Activity activity)
+    private bool IsExpanded(DiagramElement elem, BaseElement activity)
     {
-        return true;
+        return (activity, elem) switch
+        {
+            (CallActivity, _) => false,
+            (SubProcess, BpmnPlane) => true,
+            (SubProcess, BpmnShape s) => s.IsExpanded,
+            (Participant p, _) => p.ProcessRef is not null,
+            _ => true
+        };
     }
 
     private void AddGatewayShape(BpmnShape bpmnShape, Gateway gateway)
     {
         var b = bpmnShape.Bounds;
-        var mh = b.Height / 2;
-        var mw = b.Width / 2;
+        var cx = (float) b.Width / 2f;
+        var cy = (float) b.Height / 2f;
         var group = new XElement(XName.Get("g", SvgNamespace),
+            new XAttribute("data-element-id", gateway.Id),
+            new XAttribute("transform", CreateCI($"matrix(1 0 0 1 {b.X} {b.Y})")),
             new XElement(XName.Get("polygon", SvgNamespace),
-                new XAttribute("points", ((FormattableString)$"{b.X},{b.Y + mh} {b.X + mw},{b.Y} {b.X + b.Width},{b.Y + mh} {b.X + mh},{b.Y + b.Height}").ToString(CultureInfo.InvariantCulture)),
+                new XAttribute("points", "25,0 50,25 25,50 0,25"),
                 new XAttribute("fill", "none"),
                 new XAttribute("stroke", "black"),
                 new XAttribute("stroke-width", 2)
             ));
+        _currentGroup.Add(group);
 
         switch (gateway)
         {
             case ParallelGateway:
                 group.Add(CreatePath(
-                    Path.GatewayParallel.GetScaledPath(new Path.ScaleParams { XScaleFactor = 0.6f, YScaleFactor = 0.6f, ContainerWidth = (float)bpmnShape.Bounds.Width, ContainerHeight = (float)bpmnShape.Bounds.Height, AbsolutePosition = new Abstractions.Model.Point { X = bpmnShape.Bounds.X, Y = bpmnShape.Bounds.Y }, Position = new Abstractions.Model.Point { X = 0.46, Y = 0.2 } }),
+                    Path.GatewayParallel.GetScaledPath(0.6f, (float)b.Width, (float)b.Height, 0.46f, 0.2f),
                     fill: "black",
                     strokeWidth: 1f));
                 break;
             case ExclusiveGateway:
                 group.Add(CreatePath(
-                    Path.GatewayExclusive.GetScaledPath(new Path.ScaleParams { XScaleFactor = 0.4f, YScaleFactor = 0.4f, ContainerWidth = (float)bpmnShape.Bounds.Width, ContainerHeight = (float)bpmnShape.Bounds.Height, AbsolutePosition = new Abstractions.Model.Point { X = bpmnShape.Bounds.X, Y = bpmnShape.Bounds.Y }, Position = new Abstractions.Model.Point { X = 0.32, Y = 0.3 } }),
+                    Path.GatewayExclusive.GetScaledPath(0.4f, (float)b.Width, (float)b.Height, 0.32f, 0.3f),
                     fill: "black",
                     strokeWidth: 1f));
                 break;
             case ComplexGateway:
                 group.Add(CreatePath(
-                    Path.GatewayComplex.GetScaledPath(new Path.ScaleParams { XScaleFactor = 0.5f, YScaleFactor = 0.5f, ContainerWidth = (float)bpmnShape.Bounds.Width, ContainerHeight = (float)bpmnShape.Bounds.Height, AbsolutePosition = new Abstractions.Model.Point { X = bpmnShape.Bounds.X, Y = bpmnShape.Bounds.Y }, Position = new Abstractions.Model.Point { X = 0.46, Y = 0.26 } }),
+                    Path.GatewayComplex.GetScaledPath(0.5f, (float)b.Width, (float)b.Height, 0.46f, 0.26f),
                     fill: "black",
                     strokeWidth: 1f));
                 break;
             case InclusiveGateway:
-                group.Add(CreateCircle(bpmnShape.Bounds, (float)(bpmnShape.Bounds.Height * 0.24d), strokeWidth: 2.5f));
+                group.Add(CreateCircle(cx, cy, (float)(b.Height * 0.24d), strokeWidth: 2.5f));
                 break;
             case EventBasedGateway eventBasedGateway:
 
-                group.Add(CreateCircle(bpmnShape.Bounds, (float)(bpmnShape.Bounds.Height * 0.20d), strokeWidth: 1f));
+                group.Add(CreateCircle(cx, cy, (float)(b.Height * 0.20d), strokeWidth: 1f));
                 switch (eventBasedGateway.EventGatewayType)
                 {
                     case EventBasedGatewayType.Parallel:
                         group.Add(CreatePath(
-                            Path.GatewayParallel.GetScaledPath(new Path.ScaleParams { XScaleFactor = 0.4f, YScaleFactor = 0.4f, ContainerWidth = (float)bpmnShape.Bounds.Width, ContainerHeight = (float)bpmnShape.Bounds.Height, AbsolutePosition = new Abstractions.Model.Point { X = bpmnShape.Bounds.X, Y = bpmnShape.Bounds.Y }, Position = new Abstractions.Model.Point { X = 0.474, Y = 0.296 } }),
+                            Path.GatewayParallel.GetScaledPath(0.4f, (float)b.Width, (float)b.Height, 0.474f, 0.296f),
                             strokeWidth: 1f));
                         break;
                     case EventBasedGatewayType.Exclusive:
                         if (!eventBasedGateway.Instantiate)
                         {
-                            group.Add(CreateCircle(bpmnShape.Bounds, (float)(bpmnShape.Bounds.Height * 0.26d), strokeWidth: 1f));
+                            group.Add(CreateCircle(cx, cy, (float)(b.Height * 0.26d), strokeWidth: 1f));
                         }
                         break;
                 }
                 group.Add(CreatePath(
-                    Path.GatewayEventBased.GetScaledPath(new Path.ScaleParams { XScaleFactor = 0.18f, YScaleFactor = 0.18f, ContainerWidth = (float)bpmnShape.Bounds.Width, ContainerHeight = (float)bpmnShape.Bounds.Height, AbsolutePosition = new Abstractions.Model.Point { X = bpmnShape.Bounds.X, Y = bpmnShape.Bounds.Y }, Position = new Abstractions.Model.Point { X = 0.36, Y = 0.44 } })));
+                    Path.GatewayEventBased.GetScaledPath(0.18f, (float)b.Width, (float)b.Height, 0.36f, 0.44f)));
                 break;
         }
         if (bpmnShape.Label != null)
         {
-            AddLabel(group, gateway.Name, bpmnShape.Label.Bounds, HorizontalAlignment.Center, VerticalAlignment.Center, 0f, DefaultStrokeColor);
+            AddLabel(group.Parent, gateway.Name, gateway.Id, bpmnShape.Label.Bounds, HorizontalAlignment.Center, VerticalAlignment.Center, 0f, DefaultStrokeColor);
         }
-        _currentGroup.Add(group);
+        
     }
 
     private string GetStrokeColor(DiagramElement element, string defaultColor = DefaultStrokeColor)
@@ -524,19 +590,6 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         return ret;
     }
 
-    private XElement CreateCircle(float r, Bounds bounds, float offset = 0f, string fill = "white", string stroke = "black", float strokeWidth = 2f, string strokeDashArray = null, string strokeLineCap = null, float? fillOpacity = null)
-    {
-        var cx = (float)(bounds.X + bounds.Width / 2d);
-        var cy = (float)(bounds.Y + bounds.Height / 2d);
-        return CreateCircle(cx, cy, r, offset, fill, stroke, strokeWidth, strokeDashArray, strokeLineCap, fillOpacity);
-    }
-
-    private XElement CreateCircle(Bounds bounds, float offset = 0f, string fill = "white", string stroke = "black", float strokeWidth = 2f, string strokeDashArray = null, string strokeLineCap = null, float? fillOpacity = null)
-    {
-        var r = (float)(bounds.Width / 2d);
-        return CreateCircle(r, bounds, offset, fill, stroke, strokeWidth, strokeDashArray, strokeLineCap, fillOpacity);
-    }
-
     private XElement CreateCircle(float cx, float cy, float r, float offset = 0f, string fill = "white", string stroke = "black", float strokeWidth = 2f, string strokeDashArray = null, string strokeLineCap = null, float? fillOpacity = null)
     {
         var ret = new XElement(XName.Get("circle", SvgNamespace),
@@ -561,13 +614,13 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         return ret;
     }
 
-    private XElement CreateRectangle(Bounds bounds, float borderRadius = 0f, string fill = "white", string stroke = "black", float strokeWidth = 2f, string strokeDashArray = null, string strokeLineCap = null, float? fillOpacity = null)
+    private XElement CreateRectangle(float width, float height, float borderRadius = 0f, float offset = 0f, string fill = "white", string stroke = "black", float strokeWidth = 2f, string strokeDashArray = null, string strokeLineCap = null, float? fillOpacity = null)
     {
         var ret = new XElement(XName.Get("rect", SvgNamespace),
-                    new XAttribute("x", bounds.X),
-                    new XAttribute("y", bounds.Y),
-                    new XAttribute("width", bounds.Width),
-                    new XAttribute("height", bounds.Height),
+                    new XAttribute("x", offset),
+                    new XAttribute("y", offset),
+                    new XAttribute("width", width - offset * 2),
+                    new XAttribute("height", height - offset * 2),
                     new XAttribute("rx", borderRadius),
                     new XAttribute("ry", borderRadius),
                     new XAttribute("fill", fill),
@@ -590,9 +643,6 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
 
     private void AddEventShape(BpmnShape bpmnShape, Event @event)
     {
-        //var x = (float)(bpmnShape.Bounds.X + bpmnShape.Bounds.Width / 2d);
-        //var y = (float)(bpmnShape.Bounds.Y + bpmnShape.Bounds.Height / 2d);
-        //var r = (float)(bpmnShape.Bounds.Width / 2d);
         var strokeWidth = 2f;
         string strokeDashArray = null;
         string strokeLineCap = null;
@@ -600,7 +650,9 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         string stroke = GetStrokeColor(bpmnShape);
         float? fillOpacity = null;
 
-        var eventGroup = new XElement(XName.Get("g", SvgNamespace));
+        var eventGroup = new XElement(XName.Get("g", SvgNamespace),
+            new XAttribute("transform", CreateCI($"matrix(1 0 0 1 {bpmnShape.Bounds.X} {bpmnShape.Bounds.Y})")),
+            new XAttribute("data-element-id", @event.Id));
 
         switch (@event)
         {
@@ -617,7 +669,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
             case IntermediateCatchEvent:
             case IntermediateThrowEvent:
                 strokeWidth = 1f;
-                eventGroup.Add(CreateCircle(bpmnShape.Bounds, InnerOuterDistance, strokeWidth: 1f, fill: GetFillColor(bpmnShape, "none"), stroke: GetStrokeColor(bpmnShape)));
+                eventGroup.Add(CreateCircle((float)bpmnShape.Bounds.Width / 2f, (float) bpmnShape.Bounds.Height / 2f, (float)bpmnShape.Bounds.Width / 2f, InnerOuterDistance, strokeWidth: 1f, fill: GetFillColor(bpmnShape, "none"), stroke: GetStrokeColor(bpmnShape)));
                 break;
             case BoundaryEvent boundaryEvent:
                 strokeWidth = 1f;
@@ -627,10 +679,10 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
                     strokeLineCap = "round";
                 }
                 fillOpacity = 1f;
-                eventGroup.Add(CreateCircle(bpmnShape.Bounds, InnerOuterDistance, strokeWidth: 1f, fill: "none", stroke: stroke, strokeDashArray: strokeDashArray, strokeLineCap: strokeLineCap));
+                eventGroup.Add(CreateCircle((float)bpmnShape.Bounds.Width / 2f, (float)bpmnShape.Bounds.Height / 2f, (float)bpmnShape.Bounds.Width / 2f, InnerOuterDistance, strokeWidth: 1f, fill: "none", stroke: stroke, strokeDashArray: strokeDashArray, strokeLineCap: strokeLineCap));
                 break;
         }
-        eventGroup.AddFirst(CreateCircle(bpmnShape.Bounds, fill: fill, stroke: stroke, strokeWidth: strokeWidth, strokeDashArray: strokeDashArray, strokeLineCap: strokeLineCap, fillOpacity: fillOpacity));
+        eventGroup.AddFirst(CreateCircle((float)(bpmnShape.Bounds.Width / 2f), (float)(bpmnShape.Bounds.Height / 2f), (float)bpmnShape.Bounds.Width / 2f, fill: fill, stroke: stroke, strokeWidth: strokeWidth, strokeDashArray: strokeDashArray, strokeLineCap: strokeLineCap, fillOpacity: fillOpacity));
         _currentGroup.Add(eventGroup);
         AddEventContent(bpmnShape, @event, eventGroup);
     }
@@ -658,7 +710,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<MessageEventDefinition>(@event))
         {
             parent.Add(CreatePath(
-                Path.EventMessage.GetScaledPath(0.9f, bpmnShape.Bounds, 0.235f, 0.315f),
+                Path.EventMessage.GetScaledPath(0.9f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.235f, 0.315f),
                 fill: isThrowing ? GetStrokeColor(bpmnShape) : GetFillColor(bpmnShape),
                 stroke: isThrowing ? GetFillColor(bpmnShape) : GetStrokeColor(bpmnShape),
                 strokeWidth: 1f
@@ -666,10 +718,10 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         }
         if (IsTypedEvent<TimerEventDefinition>(@event))
         {
-            parent.Add(CreateCircle(bpmnShape.Bounds, (float)bpmnShape.Bounds.Height * 0.2f, stroke: GetStrokeColor(bpmnShape), fill: GetFillColor(bpmnShape)));
+            parent.Add(CreateCircle((float)bpmnShape.Bounds.Width / 2f, (float)bpmnShape.Bounds.Height / 2f, (float)bpmnShape.Bounds.Width / 2f, (float)bpmnShape.Bounds.Height * 0.2f, stroke: GetStrokeColor(bpmnShape), fill: GetFillColor(bpmnShape)));
             parent.Add(CreatePath(
-                Path.EventTimerWH.GetScaledPath(0.75f, bpmnShape.Bounds, 0.5f, 0.5f),
-                strokeLineCap: "square",
+                Path.EventTimerWH.GetScaledPath(0.75f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.5f, 0.5f),
+                strokeLineCap: "round",
                 stroke: GetStrokeColor(bpmnShape)
                 ));
 
@@ -679,10 +731,10 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
                 var height = bpmnShape.Bounds.Height / 2;
 
                 parent.Add(CreatePath(
-                    Path.EventTimerLine.GetScaledPath(0.75f, bpmnShape.Bounds, 0.5f, 0.5f),
+                    Path.EventTimerLine.GetScaledPath(0.75f, (float) bpmnShape.Bounds.Width, (float) bpmnShape.Bounds.Height, 0.5f, 0.5f),
                     strokeWidth: 1f,
-                    strokeLineCap: "square",
-                    transform: ((FormattableString)$"rotate({i * 30},{height},{width})").ToString(CultureInfo.InvariantCulture),
+                    strokeLineCap: "round",
+                    transform: CreateCI($"rotate({i * 30},{height},{width})"),
                     stroke: GetStrokeColor(bpmnShape)
                     ));
             }
@@ -690,7 +742,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<ConditionalEventDefinition>(@event))
         {
             parent.Add(CreatePath(
-                Path.EventConditional.GetScaledPath(1f, bpmnShape.Bounds, 0f, 0f),
+                Path.EventConditional.GetScaledPath(1f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0f, 0f),
                 strokeWidth: 1f,
                 stroke: GetStrokeColor(bpmnShape)
                 ));
@@ -698,7 +750,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<SignalEventDefinition>(@event))
         {
             parent.Add(CreatePath(
-                Path.EventSignal.GetScaledPath(0.9f, bpmnShape.Bounds, 0.5f, 0.2f),
+                Path.EventSignal.GetScaledPath(0.9f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.5f, 0.2f),
                 fill: isThrowing ? GetStrokeColor(bpmnShape) : "none",
                 strokeWidth: 1f,
                 stroke: GetStrokeColor(bpmnShape)
@@ -707,7 +759,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<CancelEventDefinition>(@event) && IsTypedEvent<TerminateEventDefinition>(@event, x => x is CatchEvent catchEvent && !catchEvent.ParallelMultiple))
         {
             parent.Add(CreatePath(
-                Path.EventMultiple.GetScaledPath(1.1f, bpmnShape.Bounds, 0.222f, 0.36f),
+                Path.EventMultiple.GetScaledPath(1.1f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.222f, 0.36f),
                 fill: isThrowing ? GetStrokeColor(bpmnShape) : "none",
                 strokeWidth: 1f
                 ));
@@ -715,7 +767,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<CancelEventDefinition>(@event) && IsTypedEvent<TerminateEventDefinition>(@event, x => x is CatchEvent catchEvent && catchEvent.ParallelMultiple))
         {
             parent.Add(CreatePath(
-                Path.EventParallelMultiple.GetScaledPath(1.2f, bpmnShape.Bounds, 0.458f, 0.194f),
+                Path.EventParallelMultiple.GetScaledPath(1.2f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.458f, 0.194f),
                 strokeWidth: 1f,
                 fill: GetStrokeColor(bpmnShape),
                 stroke: GetStrokeColor(bpmnShape)
@@ -724,7 +776,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<EscalationEventDefinition>(@event))
         {
             parent.Add(CreatePath(
-                Path.EventEscalation.GetScaledPath(1f, bpmnShape.Bounds, 0.5f, 0.2f),
+                Path.EventEscalation.GetScaledPath(1f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.5f, 0.2f),
                 fill: isThrowing ? GetStrokeColor(bpmnShape) : "none",
                 strokeWidth: 1f,
                 stroke: GetStrokeColor(bpmnShape)
@@ -733,7 +785,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<LinkEventDefinition>(@event))
         {
             parent.Add(CreatePath(
-                Path.EventLink.GetScaledPath(1f, bpmnShape.Bounds, 0.57f, 0.263f),
+                Path.EventLink.GetScaledPath(1f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.57f, 0.263f),
                 fill: isThrowing ? GetStrokeColor(bpmnShape) : "none",
                 strokeWidth: 1f,
                 stroke: GetStrokeColor(bpmnShape)
@@ -742,7 +794,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<ErrorEventDefinition>(@event))
         {
             parent.Add(CreatePath(
-                Path.EventError.GetScaledPath(1.1f, bpmnShape.Bounds, 0.2f, 0.722f),
+                Path.EventError.GetScaledPath(1.1f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.2f, 0.722f),
                 fill: isThrowing ? GetStrokeColor(bpmnShape) : "none",
                 strokeWidth: 1f,
                 stroke: GetStrokeColor(bpmnShape)
@@ -751,7 +803,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<CancelEventDefinition>(@event))
         {
             parent.Add(CreatePath(
-                Path.EventCancel45.GetScaledPath(1f, bpmnShape.Bounds, 0.638f, -0.055f),
+                Path.EventCancel45.GetScaledPath(1f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.638f, -0.055f),
                 fill: isThrowing ? GetStrokeColor(bpmnShape) : "none",
                 strokeWidth: 1f,
                 stroke: GetStrokeColor(bpmnShape),
@@ -761,7 +813,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         if (IsTypedEvent<CompensateEventDefinition>(@event))
         {
             parent.Add(CreatePath(
-                Path.EventCompensation.GetScaledPath(1f, bpmnShape.Bounds, 0.22f, 0.5f),
+                Path.EventCompensation.GetScaledPath(1f, bpmnShape.Bounds.Width, bpmnShape.Bounds.Height, 0.22f, 0.5f),
                 fill: isThrowing ? GetStrokeColor(bpmnShape) : "none",
                 strokeWidth: 1f,
                 stroke: GetStrokeColor(bpmnShape)
@@ -769,17 +821,19 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         }
         if (IsTypedEvent<TerminateEventDefinition>(@event))
         {
-            parent.Add(CreateCircle(bpmnShape.Bounds, 8f, strokeWidth: 4f, fill: GetStrokeColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)));
+            parent.Add(CreateCircle((float) bpmnShape.Bounds.Width / 2, (float) bpmnShape.Bounds.Height / 2, 8f, strokeWidth: 4f, fill: GetStrokeColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)));
         }
         if (bpmnShape.Label != null)
         {
-            AddLabel(parent, @event.Name, bpmnShape.Label.Bounds, HorizontalAlignment.Center, VerticalAlignment.Center, 0f, DefaultStrokeColor);
+            AddLabel(parent.Parent, @event.Name, @event.Id, bpmnShape.Label.Bounds, HorizontalAlignment.Center, VerticalAlignment.Center, 0f, DefaultStrokeColor);
         }
     }
 
     private void AddTaskShape(BpmnShape bpmnShape, Abstractions.Model.Task task)
     {
-        var taskGroup = new XElement(XName.Get("g", SvgNamespace));
+        var taskGroup = new XElement(XName.Get("g", SvgNamespace), 
+            new XAttribute("transform", CreateCI($"matrix(1 0 0 1 {bpmnShape.Bounds.X} {bpmnShape.Bounds.Y})")), 
+            new XAttribute("data-element-id", task.Id));
         var fill = GetFillColor(bpmnShape);
         var stroke = GetStrokeColor(bpmnShape);
         float strokeWidth = 2f;
@@ -788,49 +842,49 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
         {
             case UserTask:
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeUser1.GetScaledPath(bpmnShape.Bounds.Offset(15f, 12f)),
+                    Path.TaskTypeUser1.GetScaledPath(15f, 12f),
                     strokeWidth: 0.5f, fill: GetFillColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)
                     ));
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeUser2.GetScaledPath(bpmnShape.Bounds.Offset(15f, 12f)),
+                    Path.TaskTypeUser2.GetScaledPath(15f, 12f),
                     strokeWidth: 0.5f, fill: GetFillColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)
                     ));
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeUser3.GetScaledPath(bpmnShape.Bounds.Offset(15f, 12f)),
+                    Path.TaskTypeUser3.GetScaledPath(15f, 12f),
                     strokeWidth: 0.5f, fill: GetStrokeColor(bpmnShape), stroke: "none"
                     ));
                 break;
             case ServiceTask:
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeService.GetScaledPath(bpmnShape.Bounds.Offset(12f, 18f)),
+                    Path.TaskTypeService.GetScaledPath(12f, 18f),
                     strokeWidth: 1f, fill: GetFillColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)
                     ));
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeServiceFill.GetScaledPath(bpmnShape.Bounds.Offset(17.2f, 18f)),
+                    Path.TaskTypeServiceFill.GetScaledPath(17.2f, 18f),
                     strokeWidth: 0f,
                     fill: GetFillColor(bpmnShape)
                     ));
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeService.GetScaledPath(bpmnShape.Bounds.Offset(17f, 22f)),
+                    Path.TaskTypeService.GetScaledPath(17f, 22f),
                     strokeWidth: 1f, fill: GetFillColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)
                     ));
                 break;
             case ManualTask:
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeManual.GetScaledPath(bpmnShape.Bounds.Offset(17f, 15f)),
+                    Path.TaskTypeManual.GetScaledPath(17f, 15f),
                     strokeWidth: 0.5f, fill: GetFillColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)
                     ));
                 break;
             case SendTask:
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeSend.GetScaledPath(1f, (float)bpmnShape.Bounds.X, (float)bpmnShape.Bounds.Y, 21f, 14f, 0.285f, 0.357f),
+                    Path.TaskTypeSend.GetScaledPath(1f, 21f, 14f, 0.285f, 0.357f),
                     strokeWidth: 1f, fill: GetStrokeColor(bpmnShape), stroke: GetFillColor(bpmnShape)
                     ));
                 break;
             case ReceiveTask receiveTask:
                 if (receiveTask.Instantiate)
                 {
-                    taskGroup.Add(CreateCircle((float)bpmnShape.Bounds.X + 14f, (float)bpmnShape.Bounds.Y + 14f, 20f * 0.22f, strokeWidth: 1f));
+                    taskGroup.Add(CreateCircle(14f, 14f, 20f * 0.22f, strokeWidth: 1f));
                     taskGroup.Add(CreatePath(
                         Path.TaskTypeInstantiatingSend.GetScaledPath(7.77f, 9.52f),
                         strokeWidth: 1f, fill: GetFillColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)
@@ -839,45 +893,115 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
                 else
                 {
                     taskGroup.Add(CreatePath(
-                        Path.TaskTypeSend.GetScaledPath(0.9f, (float)bpmnShape.Bounds.X, (float)bpmnShape.Bounds.Y, 21f, 14f, 0.3f, 0.4f),
+                        Path.TaskTypeSend.GetScaledPath(0.9f, 21f, 14f, 0.3f, 0.4f),
                         strokeWidth: 1f, fill: GetFillColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)
                         ));
                 }
                 break;
             case ScriptTask:
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeScript.GetScaledPath(bpmnShape.Bounds.Offset(15f, 20f)),
+                    Path.TaskTypeScript.GetScaledPath(15f, 20f),
                     strokeWidth: 1f, stroke: GetStrokeColor(bpmnShape)
                     ));
                 break;
             case BusinessRuleTask:
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeBusinessRuleHeader.GetScaledPath(bpmnShape.Bounds.Offset(8f, 8f)),
+                    Path.TaskTypeBusinessRuleHeader.GetScaledPath(8f, 8f),
                     strokeWidth: 1f, fill: GetFillColor(bpmnShape, "#aaaaaa"), stroke: GetStrokeColor(bpmnShape)
                     ));
                 taskGroup.Add(CreatePath(
-                    Path.TaskTypeBusinessRuleMain.GetScaledPath(bpmnShape.Bounds.Offset(8f, 8f)),
+                    Path.TaskTypeBusinessRuleMain.GetScaledPath(8f, 8f),
                     strokeWidth: 1f, fill: GetFillColor(bpmnShape), stroke: GetStrokeColor(bpmnShape)
                     ));
                 break;
         }
 
-        taskGroup.AddFirst(CreateRectangle(bpmnShape.Bounds, TaskBorderRadius, fill, stroke, strokeWidth));
-        AddEmbeddedLabel(taskGroup, bpmnShape, task, "center-middle");
+        taskGroup.AddFirst(CreateRectangle((float)bpmnShape.Bounds.Width, (float) bpmnShape.Bounds.Height, TaskBorderRadius, fill: fill, stroke: stroke, strokeWidth: strokeWidth));
         AttachTaskMarkers(taskGroup, bpmnShape, task);
         _currentGroup.Add(taskGroup);
+        AddEmbeddedLabel(_currentGroup, bpmnShape, task, HorizontalAlignment.Center, VerticalAlignment.Center);
     }
 
-    private void AddEmbeddedLabel(XElement parent, BpmnShape bpmnShape, Activity activity, string align)
+    private void AddEmbeddedLabel(XElement parent, BpmnShape bpmnShape, Activity activity, HorizontalAlignment hAlign = HorizontalAlignment.Center, VerticalAlignment vAlign = VerticalAlignment.Center, bool addGroup = true)
     {
-        AddLabel(parent, activity.Name, bpmnShape.Bounds, HorizontalAlignment.Center, VerticalAlignment.Center, 5f, GetStrokeColor(bpmnShape));
+        AddLabel(parent, activity.Name, activity.Id, bpmnShape.Bounds, hAlign, vAlign, 5f, GetStrokeColor(bpmnShape), addGroup: addGroup);
     }
-
-
 
     private void AttachTaskMarkers(XElement taskGroup, BpmnShape bpmnShape, Activity activity, params string[] markers)
     {
-        //TODO
+        var subProcess = markers.Contains("SubProcessMarker");
+        var seq = subProcess ? -21 : -5;
+        var parallel = subProcess ? -22 : -6;
+        var compensation = subProcess ? -42 : -27;
+        var loop = subProcess ? -18 : 0;
+        var adhoc = 10;
+
+        foreach(var marker in markers)
+        {
+            CreateTaskMarker(taskGroup, marker, bpmnShape, activity, parallel, seq, compensation, loop, adhoc);
+        }
+
+        if(activity.IsForComposation)
+        {
+            CreateTaskMarker(taskGroup, "CompensationMarker", bpmnShape, activity, parallel, seq, compensation, loop, adhoc);
+        }
+
+        if(activity is AdHocSubProcess)
+        {
+            CreateTaskMarker(taskGroup, "AdhocMarker", bpmnShape, activity, parallel, seq, compensation, loop, adhoc);
+        }
+
+        if(activity.LoopCharacteristics is not null)
+        {
+            if(activity.LoopCharacteristics is MultiInstanceLoopCharacteristics milc)
+            {
+                if(milc.IsSequential)
+                {
+                    CreateTaskMarker(taskGroup, "SequentialMarker", bpmnShape, activity, parallel, seq, compensation, loop, adhoc);
+                }
+                else
+                {
+                    CreateTaskMarker(taskGroup, "ParallelMarker", bpmnShape, activity, parallel, seq, compensation, loop, adhoc);
+                }
+            }
+            else
+            {
+                CreateTaskMarker(taskGroup, "LoopMarker", bpmnShape, activity, parallel, seq, compensation, loop, adhoc);
+            }
+        }
+    }
+
+    private void CreateTaskMarker(XElement taskGroup, string marker, BpmnShape bpmnShape, Activity activity, float parallel = 0f, float sequential = 0f, float compensation = 0f, float loop = 0f, float adhoc = 0f)
+    {
+        var width = bpmnShape.Bounds.Width;
+        var height = bpmnShape.Bounds.Height;
+        switch (marker)
+        {
+            case "ParticipantMultiplicityMarker":
+                taskGroup.Add(CreatePath(Path.MarkerParallel.GetScaledPath(1f, width, height, (float) ((width / 2 - 6) / width), (float) ((height - 15) / height))));
+                break;
+            case "SubProcessMarker":
+                var markerRect = CreateRectangle(14, 14, 0, strokeWidth: 1f);
+                markerRect.SetAttributeValue("transform", CreateCI($"translate({width / 2 - 7.5} {height - 20})"));
+                taskGroup.Add(markerRect);
+                taskGroup.Add(CreatePath(Path.MarkerSubProcess.GetScaledPath(1.5f, width, height, (float)((width / 2 - 7.5) / width), (float)((height - 20) / height))));
+                break;
+            case "ParallelMarker":
+                taskGroup.Add(CreatePath(Path.MarkerParallel.GetScaledPath(1f, width, height, (float)((width / 2 + parallel) / width), (float)((height - 20) / height))));
+                break;
+            case "SequentialMarker":
+                taskGroup.Add(CreatePath(Path.MarkerSequential.GetScaledPath(1f, width, height, (float)((width / 2 + sequential) / width), (float)((height - 19) / height))));
+                break;
+            case "CompensationMarker":
+                taskGroup.Add(CreatePath(Path.MarkerCompensation.GetScaledPath(1f, width, height, (float)((width / 2 + compensation) / width), (float)((height - 13) / height)), strokeWidth: 1f));
+                break;
+            case "LoopMarker":
+                taskGroup.Add(CreatePath(Path.MarkerLoop.GetScaledPath(1f, width, height, (float)((width / 2 + loop) / width), (float)((height - 7) / height)), strokeWidth: 1.5f, fill: "none"));
+                break;
+            case "AdhocMarker":
+                taskGroup.Add(CreatePath(Path.MarkerAdHoc.GetScaledPath(1f, width, height, (float)((width / 2 + adhoc) / width), (float)((height - 15) / height)), strokeWidth: 1f));
+                break;
+        }
     }
 
     private static (int width, int height) CalculateWidthAndHeight(Plane plane)

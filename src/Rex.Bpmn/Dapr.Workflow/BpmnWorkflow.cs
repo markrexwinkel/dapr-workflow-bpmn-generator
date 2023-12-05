@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 
 namespace Rex.Bpmn.Dapr.Workflow;
 
-public abstract class BpmnWorkflow<TInput, TOutput, TWorkflowState> : Workflow<TInput, TOutput>
+public abstract class BpmnWorkflow<TInput, TOutput, TWorkflowState, TWorkflow> : Workflow<TInput, TOutput> where TWorkflow : IBpmnXmlProvider
 {
     protected class CallHandlerResult(CallHandlerAsync next, string flowId, string activityId)
     {
@@ -21,10 +21,10 @@ public abstract class BpmnWorkflow<TInput, TOutput, TWorkflowState> : Workflow<T
         public string ActivityId { get; } = activityId;
     }
 
-    private readonly ConcurrentDictionary<string, int> _entries = new();
-    
     protected delegate Task<CallHandlerResult[]> CallHandlerAsync(WorkflowContext context, TWorkflowState state, CallHandlerContext callContext);
 
+    private readonly ConcurrentDictionary<string, int> _entries = new();
+    
     public override async Task<TOutput> RunAsync(WorkflowContext context, TInput input)
     {
         try
@@ -32,7 +32,7 @@ public abstract class BpmnWorkflow<TInput, TOutput, TWorkflowState> : Workflow<T
             var info = new BpmnWorkflowInfo
             {
                 Name = context.Name,
-                Xml = GetXml()
+                Xml = TWorkflow.GetXml()
             };
             await context.CallActivityAsync(nameof(StartBpmnWorkflowActivity), info);
             return await RunInternalAsync(context, input);
@@ -42,8 +42,6 @@ public abstract class BpmnWorkflow<TInput, TOutput, TWorkflowState> : Workflow<T
             await context.CallActivityAsync(nameof(EndBpmnWorkflowActivity), context.Name);
         }
     }
-
-    protected abstract string GetXml();
 
     protected abstract Task<TOutput> RunInternalAsync(WorkflowContext context, TInput input);
 

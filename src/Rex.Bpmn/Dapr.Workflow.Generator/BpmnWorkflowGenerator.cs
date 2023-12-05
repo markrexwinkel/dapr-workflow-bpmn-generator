@@ -7,14 +7,12 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml;
-using System.Xml.Serialization;
 
 namespace Rex.Bpmn.Dapr.Workflow.Generator;
 
 [Generator]
 public partial class BpmnWorkflowGenerator : ISourceGenerator
 {
-    private readonly XmlSerializer _bpmnSerializer = new(typeof(Definitions));
     private const string DiagnosticCategory = "Rex.Bpmn.Dapr.Workflow";
     private static readonly DiagnosticDescriptor FailedToLoadBpmn = new("BPMN0001", "Failed to load BPMN file", "Failed to load BPMN file {0}", DiagnosticCategory, DiagnosticSeverity.Error, true);
     private static readonly DiagnosticDescriptor NoStartEventFound = new("BPMN0002", "No start event found", "No start event found", DiagnosticCategory, DiagnosticSeverity.Error, true);
@@ -38,7 +36,8 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             foreach (var bpmnFile in bpmnFiles)
             {
                 var xml = bpmnFile.GetText().ToString();
-                var definitions = (Definitions)_bpmnSerializer.Deserialize(new StringReader(xml));
+                var model = BpmnModel.Parse(xml);
+                var definitions = model.Definitions;
                 if (definitions is null)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(FailedToLoadBpmn, null, bpmnFile));
@@ -107,9 +106,9 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
 
             namespace {{ctx.RootNamespace}}.Workflows
             {
-                public class {{ctx.WorkflowClassName}} : BpmnWorkflow<{{ctx.WorkflowInputType}}, {{ctx.WorkflowOutputType}}, {{ctx.WorkflowStateClassName}}>
+                public class {{ctx.WorkflowClassName}} : BpmnWorkflow<{{ctx.WorkflowInputType}}, {{ctx.WorkflowOutputType}}, {{ctx.WorkflowStateClassName}}, {{ctx.WorkflowClassName}}>, IBpmnXmlProvider
                 {
-                    
+                    private const string _xml = {{ctx.Xml.ToLiteral()}};
 
                     protected override async Task<{{ctx.WorkflowOutputType}}> RunInternalAsync(WorkflowContext context, {{ctx.WorkflowInputType}} input)
                     {
@@ -153,10 +152,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                         return await context.CallActivityAsync<object>(nameof({{ctx.WorkflowClassName}}LogActivity), message);
                     }
 
-                    protected override string GetXml()
-                    {
-                        return {{ctx.Xml.ToLiteral()}};
-                    }
+                    public static string GetXml() => _xml;
             """);
 
         foreach (var elem in ctx.Process.FlowElements.OfType<FlowNode>().Where(x => !DoNotGenerateElements.Contains(x.GetType())))
@@ -685,26 +681,24 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                 {
                     public static IServiceCollection Add{{ctx.WorkflowClassName}}(this IServiceCollection services)
                     {
-                        services.AddDaprWorkflow(options =>
-                        {
+                        services.AddBpmnWorkflow()
             """);
         foreach (var className in ctx.WorkflowClasses)
         {
             sourceBuilder.AppendLine($$"""
-                                options.RegisterWorkflow<{{className}}>();
+                                .TryRegisterWorkflow<{{className}}>()
                 """);
         }     
-        sourceBuilder.AppendLine($$"""
-                            options.RegisterActivity<SendLocalEventActivity>();
-            """);
         foreach (var className in ctx.ActivityClasses)
         {
             sourceBuilder.AppendLine($$"""
-                                options.RegisterActivity<{{className}}>();
+                                .TryRegisterActivity<{{className}}>()
                 """);
         }
         sourceBuilder.AppendLine($$"""
-                        });
+                            .TryRegisterActivity<SendLocalEventActivity>();
+            """);
+        sourceBuilder.AppendLine($$"""
                         return services;
                     }
                 }
@@ -723,7 +717,10 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             using Dapr.Workflow;
             using Microsoft.AspNetCore.Mvc;
             using System;
+            using System.Linq;
             using System.Threading.Tasks;
+            using Rex.Bpmn.Abstractions;
+            using Rex.Bpmn.Drawing;
 
             namespace {{ctx.RootNamespace}}.Controllers
             {
@@ -750,6 +747,26 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                             input: state);
                         return instanceId;
                     }
+
+                    [HttpGet("xml")]
+                    public IActionResult GetWorkflowXml() => Content({{ctx.WorkflowClassName}}.GetXml(), "text/xml");
+
+                    [HttpGet("diagram")]
+                    public IActionResult GetDiagram()
+                    {
+                        var xml = {{ctx.WorkflowClassName}}.GetXml();
+                        var model = BpmnModel.Parse(xml);
+                        var diagram = model.Definitions.BpmnDiagrams.FirstOrDefault();
+                        if(diagram is null)
+                        {
+                            return NotFound();
+                        }
+                        var stream = new MemoryStream();
+                        diagram.WriteSvg(model.Definitions, stream);
+                        stream.Position = 0;
+                        return File(stream, "image/svg+xml", "{{ctx.Process.Id}}.svg");
+                    }
+                    
             """);
 
         foreach (var elem in ctx.Process.FlowElements.Where(x => x is ReceiveTask || x is UserTask))

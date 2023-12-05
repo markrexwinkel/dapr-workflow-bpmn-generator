@@ -24,8 +24,8 @@ public class Participant : BaseElement
     [XmlAttribute("name")]
     public string Name { get; set; }
 
-    [XmlAttribute("processDef")]
-    public XmlQualifiedName ProcessDef { get; set; }
+    [XmlAttribute("processRef")]
+    public XmlQualifiedName ProcessRef { get; set; }
 
 
 }

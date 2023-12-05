@@ -1,4 +1,3 @@
-using Dapr.Workflow;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rex.Bpmn.Dapr.Workflow;
 using Rex.Bpmn.Dapr.Workflow.Activities;
@@ -8,21 +7,23 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddBpmnWorkflows(this IServiceCollection services, Action<BpmnWorkflowOptions> configure = null)
+    public static IBpmnWorkflowBuilder AddBpmnWorkflow(this IServiceCollection services, Action<BpmnWorkflowOptions> configure = null)
     {
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        services.TryAddScoped<IWorkflowService, BpmnWorkflowService>();
-        services.AddDaprWorkflow(options =>
-        {
-            options.RegisterActivity<StartBpmnWorkflowActivity>();
-            options.RegisterActivity<EndBpmnWorkflowActivity>();
-            options.RegisterActivity<EnterBpmnActivity>();
-            options.RegisterActivity<LeaveBpmnActivity>();
-                
-        });
-        return services;
+        var builder = new BpmnWorkflowBuilder(services);
+        return builder.AddCoreServices(configure);
     }
+
+    private static IBpmnWorkflowBuilder AddCoreServices(this IBpmnWorkflowBuilder builder, Action<BpmnWorkflowOptions> configure = null)
+    {
+        builder.Services.Configure(configure ?? Noop);
+        builder.Services.TryAddScoped<IWorkflowService, BpmnWorkflowService>();
+        return builder
+            .TryRegisterActivity<StartBpmnWorkflowActivity>()
+            .TryRegisterActivity<EndBpmnWorkflowActivity>()
+            .TryRegisterActivity<EnterBpmnActivity>()
+            .TryRegisterActivity<LeaveBpmnActivity>();
+
+       static void Noop(BpmnWorkflowOptions options) { }
+    }
+
 }
