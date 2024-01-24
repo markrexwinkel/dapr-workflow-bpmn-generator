@@ -40,11 +40,11 @@
         {
             "appId": "test-app",
             "appPort": 49256,
-            "httpPort": 3500,
             "grpcPort": 4001,
+            "httpPort": 3500,
+            
             "label": "dapr-debug",
-            "type": "dapr",
-            "dependsOn":[ "build" ]
+            "type": "dapr"
         },
         {
             "appId": "test-app",

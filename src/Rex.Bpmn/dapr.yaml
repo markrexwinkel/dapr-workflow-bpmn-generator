@@ -1,0 +1,8 @@
+version: 1
+apps:
+  - appDirPath: TestApp
+    appPort: 49256
+    daprHTTPPort: 3500
+    daprGRPCPort: 4001
+    appID: test-app
+

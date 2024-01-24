@@ -1,26 +1,36 @@
 using Dapr.Client;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Rex.Bpmn.Dapr.Workflow.Services;
 
 #pragma warning disable CS0618
 
-public class BpmnWorkflowService(DaprClient client, IOptionsSnapshot<BpmnWorkflowOptions> options) : IWorkflowService
+public class BpmnWorkflowService(DaprClient client, IOptionsSnapshot<BpmnWorkflowOptions> options, ILogger<BpmnWorkflowService> logger) : IWorkflowService
 {
     private readonly DaprClient _client = client;
     private readonly BpmnWorkflowOptions _options = options.Value;
     private readonly string _ownerId = Guid.NewGuid().ToString();
+    private readonly ILogger<BpmnWorkflowService> _logger = logger;
 
     public async Task StartWorkflowAsync(string instanceId, BpmnWorkflowInfo info, CancellationToken cancellationToken = default)
     {
-        var key = GetKey(info.Name);
-        await RunWithLockAsync(key, async () =>
+        try
         {
-            var state = await _client.GetStateAsync<BpmnWorkflowState>(_options.StoreName, key, ConsistencyMode.Strong, cancellationToken: cancellationToken);
-            state ??= new BpmnWorkflowState { Info = info };
-            state.Instances.Add(instanceId);
-            await _client.SaveStateAsync(_options.StoreName, key, state, cancellationToken: cancellationToken);
-        }, cancellationToken);
+            _logger.LogInformation($"{nameof(StartWorkflowAsync)}: instanceId={instanceId}, name={info.Name}");
+            var key = GetKey(info.Name);
+            await RunWithLockAsync(key, async () =>
+            {
+                var state = await _client.GetStateAsync<BpmnWorkflowState>(_options.StoreName, key, ConsistencyMode.Strong, cancellationToken: cancellationToken);
+                state ??= new BpmnWorkflowState { Info = info };
+                state.Instances.Add(instanceId);
+                await _client.SaveStateAsync(_options.StoreName, key, state, cancellationToken: cancellationToken);
+            }, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"{nameof(StartWorkflowAsync)}: {ex.Message}");
+        }
     }
 
     public async Task EndWorkflowAsync(string name, string instanceId, CancellationToken cancellationToken = default)

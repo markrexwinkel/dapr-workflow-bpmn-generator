@@ -19,8 +19,8 @@ POST https://localhost:49256/LoanApplication
 Content-Type: application/json
 
 {
-    "ApplicantName": "Eric Grey",
-    "LoanAmount": 110000,
+    "ApplicantName": "Eric White",
+    "LoanAmount": 11000,
     "YearlyGrossSalary": 80000
 }
 
