@@ -6,8 +6,8 @@ namespace Rex.Bpmn.Drawing;
 internal static class StringHelpers
 {
 
-    public static string CreateCI(ref DefaultInterpolatedStringHandler handler)
+    public static string CreateCI(FormattableString fs)
     {
-        return string.Create(CultureInfo.InvariantCulture, ref handler);
+        return fs.ToString(CultureInfo.InvariantCulture);
     }
 }

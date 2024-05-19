@@ -124,7 +124,7 @@ class Path
     public static readonly Path GatewayExclusive = new()
     {
         D = p => CreateCI($"m {p.mx},{p.my} {p.e["x0"]},{p.e["y0"]} {p.e["x1"]},{p.e["y0"]} {p.e["x2"]},0 {p.e["x4"]},{p.e["y2"]} ") +
-                 CreateCI($"{p.e["x4"]},{p.e["y1"]} {p.e["x2"]},0 {p.e["x1"]},{p.e["y3"]} {p.e["x0"]},{p.e["y3"]}") +
+                 CreateCI($"{p.e["x4"]},{p.e["y1"]} {p.e["x2"]},0 {p.e["x1"]},{p.e["y3"]} {p.e["x0"]},{p.e["y3"]} ") +
                  CreateCI($"{p.e["x3"]},0 {p.e["x5"]},{p.e["y1"]} {p.e["x5"]},{p.e["y2"]} {p.e["x3"]},0 z"),
         Height = 17.5f,
         Width = 17.5f,
