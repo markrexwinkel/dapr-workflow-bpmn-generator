@@ -1,0 +1,55 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/src/Rex.Bpmn/Rex.Bpmn.sln",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary;ForceNoAlign"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "publish",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "publish",
+                "${workspaceFolder}/src/Rex.Bpmn/Rex.Bpmn.sln",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary;ForceNoAlign"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "watch",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "watch",
+                "run",
+                "--project",
+                "${workspaceFolder}/src/Rex.Bpmn/Rex.Bpmn.sln"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "appId": "test-app",
+            "appPort": 49256,
+            "grpcPort": 4001,
+            "httpPort": 3500,
+            
+            "label": "dapr-debug",
+            "type": "dapr"
+        },
+        {
+            "appId": "test-app",
+            "label": "daprd-down",
+            "type": "daprd-down"
+        }
+    ]
+}
