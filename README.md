@@ -1,6 +1,7 @@
 # dapr-workflow-bpmn-generator
 
-This repository contains an experimental Source Generator that generates Dapr Workflows from BPMN 2.0 files.
+This repository contains an EXPERIMENTAL Source Generator that generates Dapr Workflows from BPMN 2.0 files.
+I created it to find out if we could translate BPMN workflows into Dapr Workflows. It not complete and is not ready to use in production scenarios.
 
 ## Supported BPMN constructs
 
