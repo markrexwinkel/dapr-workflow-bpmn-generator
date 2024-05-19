@@ -6,4 +6,5 @@ public interface IWorkflowService
     Task EndWorkflowAsync(string name, string instanceId, CancellationToken cancellationToken = default);
     Task EnterActivityAsync(string instanceId, string flowId, CancellationToken cancellationToken= default);
     Task LeaveActivityAsync(string instanceId, string flowId, CancellationToken cancellationToken = default);
+    Task<BpmnWorkflowActivityState> GetActivityStateAsync(string instanceId, CancellationToken cancellationToken = default);
 }

@@ -31,6 +31,11 @@ Content-Type: application/json
 
 ###
 
+GET https://localhost:49256/LoanApplication/{{instanceId}}/diagram
+
+
+###
+
 POST https://localhost:49256/LoanApplication/{{instanceId}}/RaiseAssessApplicationCompleted
 Content-Type: application/json
 

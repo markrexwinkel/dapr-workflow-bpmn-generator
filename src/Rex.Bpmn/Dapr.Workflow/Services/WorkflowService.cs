@@ -98,7 +98,23 @@ public class BpmnWorkflowService(DaprClient client, IOptionsSnapshot<BpmnWorkflo
         }, cancellationToken);
     }
 
-    private async Task RunWithLockAsync(string resource, Func<Task> handler, CancellationToken cancellationToken = default)
+    public Task<BpmnWorkflowActivityState> GetActivityStateAsync(string instanceId, CancellationToken cancellationToken = default)
+    {
+        var key = GetKey(instanceId);
+        return RunWithLockAsync(key, async () =>
+        {
+            var state = await _client.GetStateAsync<BpmnWorkflowActivityState>(_options.StoreName, key, ConsistencyMode.Strong, cancellationToken: cancellationToken);
+            state ??= new();
+            return state;
+        }, cancellationToken);
+    }
+
+    private Task RunWithLockAsync(string resource, Func<Task> handler, CancellationToken cancellationToken = default)
+    {
+        return RunWithLockAsync<object>(resource, async () => { await handler(); return null; }, cancellationToken); 
+    }
+
+    private async Task<T> RunWithLockAsync<T>(string resource, Func<Task<T>> handler, CancellationToken cancellationToken = default)
     {
         TryLockResponse lockResponse = null;
         try
@@ -118,7 +134,7 @@ public class BpmnWorkflowService(DaprClient client, IOptionsSnapshot<BpmnWorkflo
                 throw new TimeoutException($"Failed to acquire lock for resource {resource}");
             }
 
-            await handler();
+            return await handler();
         }
         finally
         {

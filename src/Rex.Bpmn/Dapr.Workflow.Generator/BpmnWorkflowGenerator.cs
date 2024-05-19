@@ -721,6 +721,7 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
             using System.Threading.Tasks;
             using Rex.Bpmn.Abstractions;
             using Rex.Bpmn.Drawing;
+            using Rex.Bpmn.Dapr.Workflow.Services;
 
             namespace {{ctx.RootNamespace}}.Controllers
             {
@@ -730,11 +731,13 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                 {
                     private readonly ILogger<{{controllerClassName}}> _logger;
                     private readonly DaprWorkflowClient _workflowClient;
+                    private readonly IWorkflowService _workflowService;
 
-                    public {{controllerClassName}}(ILogger<{{controllerClassName}}> logger, DaprWorkflowClient workflowClient)
+                    public {{controllerClassName}}(ILogger<{{controllerClassName}}> logger, DaprWorkflowClient workflowClient, IWorkflowService workflowService)
                     {
                         _logger = logger;
                         _workflowClient = workflowClient;
+                        _workflowService = workflowService;
                     }
 
                     [HttpPost("")]
@@ -763,6 +766,23 @@ public partial class BpmnWorkflowGenerator : ISourceGenerator
                         }
                         var stream = new MemoryStream();
                         diagram.WriteSvg(model.Definitions, stream);
+                        stream.Position = 0;
+                        return File(stream, "image/svg+xml", "{{ctx.Process.Id}}.svg");
+                    }
+
+                    [HttpGet("{instanceId}/diagram")]
+                    public async Task<IActionResult> GetDiagramAsync(string instanceId)
+                    {
+                        var xml = {{ctx.WorkflowClassName}}.GetXml();
+                        var model = BpmnModel.Parse(xml);
+                        var diagram = model.Definitions.BpmnDiagrams.FirstOrDefault();
+                        if(diagram is null)
+                        {
+                            return NotFound();
+                        }
+                        var activityState = await _workflowService.GetActivityStateAsync(instanceId);
+                        var stream = new MemoryStream();
+                        diagram.WriteSvg(model.Definitions, stream, activityState.Tokens);
                         stream.Position = 0;
                         return File(stream, "image/svg+xml", "{{ctx.Process.Id}}.svg");
                     }

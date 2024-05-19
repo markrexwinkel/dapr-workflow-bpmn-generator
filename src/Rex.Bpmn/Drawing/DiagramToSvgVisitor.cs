@@ -209,7 +209,7 @@ public partial class DiagramToSvgVisitor(Definitions definitions) : BpmnModelVis
                     markerStart = "conditional-default-flow-marker";
                 }
                 group.Add(CreatePath(CreatePathFromConnection(bpmnEdge, cornerRadius), fill, stroke, strokeLineJoin: strokeLineJoin, strokeLineCap: strokeLineCap, strokeDashArray: strokeDashArray, markerStart: markerStart, markerEnd: markerEnd));
-                if(_tokens.TryGetValue(sequenceFlow.Id, out var tokenCount))
+                if(_tokens.TryGetValue(sequenceFlow.Id, out var tokenCount) && tokenCount > 0)
                 {
                     var p = GetTokenMarkerPoint(bpmnEdge.WayPoints, -30);
                     group.Add(CreateCircle((float)p.X, (float)p.Y, 10f, stroke: "none", fill: "red"));
